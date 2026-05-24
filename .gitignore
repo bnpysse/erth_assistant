@@ -1,0 +1,25 @@
+# === 系统与 IDE ===
+.DS_Store
+.vscode/
+.idea/
+
+# === 前端 Bun & ElectroBun 产物 ===
+node_modules/
+.bun/
+out/
+dist/
+build/
+electrobun-build/
+
+# === 后端 Python & Virtualenv ===
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# === 数据与本地状态 ===
+*.db
+*.db-journal
+*.db-shm
+*.db-wal

@@ -1,0 +1,10 @@
+[project]
+name = "robyn-sidecar"
+version = "0.1.0"
+description = "High-performance python sidecar for ERTH Assistant"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "robyn>=0.84.0",
+    "libsql-client>=0.1.0",
+]
