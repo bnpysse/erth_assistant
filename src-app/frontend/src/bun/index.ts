@@ -1,12 +1,15 @@
-import { BrowserWindow } from "electrobun";
+// 修改后的 src-app/frontend/src/bun/index.ts
+import Electrobun from "electrobun";
 
-console.log("[ElectroBun] 前端桌面主控引擎启动中...");
+console.log("🚀 [ElectroBun] 前端控制台启动，后端已交由人工接管...");
 
-const win = new BrowserWindow({
-  title: "ERTH Assistant",
-  width: 900,
-  height: 700,
-  html: "views://main/index.html"
+const win = new Electrobun.BrowserWindow({
+    title: "ERTH Assistant",
+    frame: {
+        width: 900,
+        height: 700
+    },
+    url: "views://main/index.html" 
 });
 
-console.log("[ElectroBun] 原生窗口已成功挂载。");
+// 移除 spawn Robyn 的逻辑，避免它在打包环境中报错
