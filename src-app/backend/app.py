@@ -1,12 +1,41 @@
-# [ANCHOR: CH-03]
-# Description: Robyn 后端边车服务入口，配置 Port 0 以供操作系统随机分配，注册本地数据库初始化、health 完整检测及 Watchdog 专属的极简 /ping 心跳回复端点。
+# [ANCHOR: CH-04]
+# Description: Robyn 后端边车服务入口，引入基于 Opaque Token 的鉴权拦截中间件与 CORS 许可白名单，锁死物理通信权限。
 # Status: Verified
 
-from robyn import Robyn, Request, Response
+import os
+from robyn import Robyn, Request, Response, ALLOW_CORS
 from db import init_db, get_db_client
 import json
 
 app = Robyn(__file__)
+
+# 在系统启动的破晓时刻，读取前端主进程静默注入的密钥
+AGENT_SECRET_TOKEN = os.environ.get("AGENT_SECRET_TOKEN")
+
+@app.before_request()
+def auth_middleware(request: Request):
+    # 跨域预检放行：如果是 OPTIONS 请求，必须直接放行给底层的路由器，规避管线锁死
+    if request.method == "OPTIONS":
+        return request
+        
+    auth_header = request.headers.get("authorization")
+    expected_token = f"Bearer {AGENT_SECRET_TOKEN}"
+    
+    # 强制比对身份令牌，拦截非法流量并响应 403
+    if not auth_header or auth_header != expected_token:
+        return Response(
+            status_code=403,
+            headers={"Content-Type": "application/json"},
+            description='{"error": "Forbidden: Invalid or Missing Opaque Token"}'
+        )
+        
+    return request
+
+# 启用官方 CORS，并显式放行授权及 HTMX 的全套特征 Headers
+ALLOW_CORS(app, origins=["*"], headers=[
+    "Authorization", "Content-Type", 
+    "hx-target", "hx-current-url", "hx-request", "hx-trigger"
+])
 
 @app.startup_handler
 async def startup():

@@ -25,6 +25,9 @@ const findBackendPath = () => {
 
 const backendPath = findBackendPath();
 
+// 零信任防线：动态生成一次性、高强度的 Opaque Token
+const agentSecretToken = crypto.randomUUID();
+
 let win: any = null; // ⚡ 提前声明，规避异步流匹配成功时由于“暂时性死区 (TDZ)”导致 win 未实例化报错
 let backendProcess: any = null;
 let portFound = false;
@@ -96,14 +99,15 @@ const handleOutput = async (stream: ReadableStream, label: string) => {
           // 开启/重置心跳探测看门狗
           startWatchdog();
 
-          // 物理防线并轨：将最新的通讯端口动态注入前台 Webview 容器，并派发就绪事件
+          // 物理防线并轨：将最新的通讯端口与 Opaque Token 动态注入前台 Webview 容器，并派发就绪事件
           if (win && win.webview) {
             win.webview.executeJavascript(`
               window.__ENV__ = {
-                BACKEND_PORT: ${backendPort}
+                BACKEND_PORT: ${backendPort},
+                TOKEN: "${agentSecretToken}"
               };
               window.dispatchEvent(new CustomEvent('backend-ready', { 
-                detail: { port: ${backendPort} } 
+                detail: { port: ${backendPort}, token: "${agentSecretToken}" } 
               }));
             `);
           }
@@ -127,6 +131,9 @@ const startWatchdog = () => {
     try {
       // 心跳探针：向后端 /ping 发起请求，设定 1000 毫秒极短超时阈值
       const res = await fetch(`http://127.0.0.1:${backendPort}/ping`, {
+        headers: {
+          "Authorization": `Bearer ${agentSecretToken}`
+        },
         signal: AbortSignal.timeout(1000)
       });
       
@@ -165,6 +172,10 @@ const startBackend = () => {
   backendProcess = spawn({
     cmd: ["uv", "run", "python", "app.py"],
     cwd: backendPath,
+    env: {
+      ...process.env,
+      AGENT_SECRET_TOKEN: agentSecretToken
+    },
     stdout: "pipe",
     stderr: "pipe", 
   });
@@ -212,10 +223,11 @@ win.webview.on("dom-ready", () => {
     if (portFound && backendPort > 0) {
         win.webview.executeJavascript(`
             window.__ENV__ = {
-                BACKEND_PORT: ${backendPort}
+                BACKEND_PORT: ${backendPort},
+                TOKEN: "${agentSecretToken}"
             };
             window.dispatchEvent(new CustomEvent('backend-ready', { 
-                detail: { port: ${backendPort} } 
+                detail: { port: ${backendPort}, token: "${agentSecretToken}" } 
             }));
         `);
     }

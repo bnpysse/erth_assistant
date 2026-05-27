@@ -23,3 +23,7 @@ __pycache__/
 *.db-journal
 *.db-shm
 *.db-wal
+
+# === 书稿 (不公开到公网) ===
+/docs/
+
