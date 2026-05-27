@@ -1,3 +1,7 @@
+# [ANCHOR: CH-02]
+# Description: Robyn 后端边车服务入口，配置 Port 0 以供操作系统随机分配，注册本地数据库初始化与 health 心跳检测。
+# Status: Verified
+
 from robyn import Robyn, Request, Response
 from db import init_db, get_db_client
 import json
