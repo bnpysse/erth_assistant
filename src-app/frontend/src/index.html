@@ -220,5 +220,63 @@
         </div>
     </main>
 
+    <!-- 前端超媒体并轨控制中心 -->
+    <script>
+        // 更新 UI 状态的公共函数
+        function updateUIWithPort(port) {
+            const indicator = document.querySelector('.pulse-indicator span:last-child');
+            if (indicator) {
+                indicator.textContent = '连接已建立 (Port: ' + port + ')';
+            }
+            const desc = document.querySelector('.welcome-card p:nth-of-type(2)');
+            if (desc) {
+                desc.textContent = '看门狗已拉起并绑定 Robyn 端口: ' + port;
+            }
+        }
+
+        // 首次加载或重载时的兜底同步机制
+        if (window.__ENV__ && window.__ENV__.BACKEND_PORT) {
+            console.log('⚡ [Frontend] 检测到已就绪的后端端口 (缓存):', window.__ENV__.BACKEND_PORT);
+            updateUIWithPort(window.__ENV__.BACKEND_PORT);
+            setTimeout(() => {
+                const activeTab = document.querySelector('.tab-btn.active');
+                if (activeTab) {
+                    htmx.trigger(activeTab, 'click');
+                }
+            }, 100);
+        }
+
+        // 监听来自 Electrobun 主进程动态注入的端口就绪事件
+        window.addEventListener('backend-ready', function(e) {
+            const port = e.detail.port;
+            console.log('⚡ [Frontend] 收到后端已就绪广播，通信端口:', port);
+            updateUIWithPort(port);
+            
+            // 自动触发一次 Tab 点击来拉取最新待办数据，消除断连孤岛
+            const activeTab = document.querySelector('.tab-btn.active');
+            if (activeTab) {
+                htmx.trigger(activeTab, 'click');
+            }
+        });
+
+        // 拦截 HTMX 请求：动态重写基准 URL，指向 Robyn 物理端口
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+            const port = window.__ENV__?.BACKEND_PORT;
+            if (port) {
+                // 将相对路径重写为包含动态端口的完整物理端点
+                evt.detail.path = `http://127.0.0.1:${port}${evt.detail.path}`;
+                
+                // 预留第四章的安全 Opaque Token 鉴权头部注入
+                if (window.__ENV__?.TOKEN) {
+                    evt.detail.headers['Authorization'] = `Bearer ${window.__ENV__.TOKEN}`;
+                }
+            } else {
+                // 端口未协商就绪时，拦截并挂起请求，防止网络报错
+                evt.preventDefault();
+                console.warn('⚠️ [Frontend] 后端通信端口未就绪，阻止并挂起 HTMX 请求');
+            }
+        });
+    </script>
+
 </body>
 </html>

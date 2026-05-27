@@ -1,5 +1,5 @@
-// [ANCHOR: CH-02]
-// Description: Bun.spawn 动态接管后端 Robyn (Port 0) 进程，监听 stdout 日志流提取分配端口，配置 10s 超时熔断器与 stderr 致命异常侦测，完成双核并轨与生命周期闭环。
+// [ANCHOR: CH-03]
+// Description: 实现看门狗防线与自愈机制。将后端拉起逻辑封装为可重复执行的 startBackend 函数，通过每3秒的心跳探针 (fetch /ping) 判定健康状态。失联3次则执行 SIGTERM 战术重启并重新进行动态端口协商。
 // Status: Verified
 
 import Electrobun from "electrobun";
@@ -24,19 +24,14 @@ const findBackendPath = () => {
 };
 
 const backendPath = findBackendPath();
-console.log(`🚀 [ElectroBun] 正在静默拉起 Robyn 后端引擎，物理路径: ${backendPath}`);
 
-// 1. 进程级接管：启动子进程并截获 stdout 和 stderr
-const backendProcess = spawn({
-  cmd: ["uv", "run", "python", "app.py"],
-  cwd: backendPath,
-  stdout: "pipe",
-  stderr: "pipe", 
-});
-
+let win: any = null; // ⚡ 提前声明，规避异步流匹配成功时由于“暂时性死区 (TDZ)”导致 win 未实例化报错
+let backendProcess: any = null;
 let portFound = false;
 let backendPort = 0;
 let timeoutTimer: any = null;
+let watchdogInterval: any = null;
+let failCount = 0;
 
 // 兼容多版本 Robyn/Uvicorn 的端口匹配正则 (支持 http://127.0.0.1:xxxx 或 listening on: 0.0.0.0:xxxx)
 const PORT_CAPTURE_REGEX = /http:\/\/127\.0\.0\.1:(\d+)|listening on: [^:]+:(\d+)/;
@@ -45,7 +40,7 @@ const PORT_CAPTURE_REGEX = /http:\/\/127\.0\.0\.1:(\d+)|listening on: [^:]+:(\d+
 const FATAL_ERRORS_REGEX = /Traceback \(most recent call last\)|ModuleNotFoundError|ImportError|AddrInUse|CRITICAL:|Error:/i;
 
 // 3. 终极防线：精准回收子进程，杜绝孤儿与僵尸进程
-const killBackendWithCode = (code = 0) => {
+const killBackendWithCode = (code = 0, autoRestart = false) => {
   if (timeoutTimer) {
     clearTimeout(timeoutTimer);
   }
@@ -53,10 +48,15 @@ const killBackendWithCode = (code = 0) => {
     console.log("\n🛑 [ElectroBun] 正在精准回收 Robyn 后端进程...");
     backendProcess.kill("SIGTERM");
   }
-  process.exit(code);
+  if (!autoRestart) {
+    if (watchdogInterval) {
+      clearInterval(watchdogInterval);
+    }
+    process.exit(code);
+  }
 };
 
-const killBackend = () => killBackendWithCode(0);
+const killBackend = () => killBackendWithCode(0, false);
 
 // 2. 监听流数据，提取关键通讯参数
 const handleOutput = async (stream: ReadableStream, label: string) => {
@@ -74,7 +74,7 @@ const handleOutput = async (stream: ReadableStream, label: string) => {
     // 致命错误熔断检测：如果 stderr 输出中包含致命的启动异常，立即紧急停机
     if (label === "STDERR" && FATAL_ERRORS_REGEX.test(text)) {
       console.error(`\n❌ [ElectroBun] 熔断器触发：侦测到后端致命启动错误，立即紧急停机！`);
-      killBackendWithCode(1);
+      killBackendWithCode(1, false);
     }
     
     if (!portFound) {
@@ -92,27 +92,105 @@ const handleOutput = async (stream: ReadableStream, label: string) => {
           }
           console.log(`\n⚡ [ElectroBun] 守护进程已挂载，后端真实通信端口: ${backendPort}`);
           console.log(`[ElectroBun] 可通过 http://127.0.0.1:${backendPort} 访问`);
+          
+          // 开启/重置心跳探测看门狗
+          startWatchdog();
+
+          // 物理防线并轨：将最新的通讯端口动态注入前台 Webview 容器，并派发就绪事件
+          if (win && win.webview) {
+            win.webview.executeJavascript(`
+              window.__ENV__ = {
+                BACKEND_PORT: ${backendPort}
+              };
+              window.dispatchEvent(new CustomEvent('backend-ready', { 
+                detail: { port: ${backendPort} } 
+              }));
+            `);
+          }
         }
       }
     }
   }
 };
 
-handleOutput(backendProcess.stdout, "STDOUT");
-handleOutput(backendProcess.stderr, "STDERR");
-
-// 启动 10 秒超时熔断器：若在规定时间内未能成功解析并绑定有效随机端口，强制停机并抛出排错指引
-const LAUNCH_TIMEOUT_MS = 10000;
-timeoutTimer = setTimeout(() => {
-  if (!portFound) {
-    console.error(`\n❌ [ElectroBun] 熔断器触发：后端引擎未能在 ${LAUNCH_TIMEOUT_MS / 1000} 秒内成功绑定有效端口，启动超时！`);
-    console.error(`💡 [排错指引]：`);
-    console.error(`   1. 请确认本地已通过 'uv' 安装相关 Python 依赖环境。`);
-    console.error(`   2. 请尝试手动在终端执行: cd src-app/backend && uv run python app.py`);
-    console.error(`   3. 检查是否有防火墙或安全规则限制了本机的网络端口分配。`);
-    killBackendWithCode(1);
+// 启动看门狗心跳监测
+const startWatchdog = () => {
+  if (watchdogInterval) {
+    clearInterval(watchdogInterval);
   }
-}, LAUNCH_TIMEOUT_MS);
+  failCount = 0;
+  console.log(`📡 [Watchdog] 侦测雷达已开启，正在对端口 :${backendPort} 监听心跳...`);
+  
+  watchdogInterval = setInterval(async () => {
+    if (!portFound || backendPort === 0) return;
+    
+    try {
+      // 心跳探针：向后端 /ping 发起请求，设定 1000 毫秒极短超时阈值
+      const res = await fetch(`http://127.0.0.1:${backendPort}/ping`, {
+        signal: AbortSignal.timeout(1000)
+      });
+      
+      if (res.ok) {
+        const data: any = await res.json();
+        if (data.status === "pong") {
+          failCount = 0; // 成功恢复通信，清零失败计数器
+        } else {
+          failCount++;
+        }
+      } else {
+        failCount++;
+      }
+    } catch (e) {
+      failCount++;
+    }
+    
+    if (failCount >= 3) {
+      console.log(`\n🚨 [Watchdog] 警告：Robyn 后端边车连续 3 次心跳丢失（或响应超时），判定边车假死！`);
+      console.log(`🚨 [Watchdog] 正在触发自愈机制，执行战术重启...`);
+      
+      // 战术自愈：杀掉当前僵死子进程并重新拉起
+      killBackendWithCode(0, true);
+      startBackend();
+    }
+  }, 3000);
+};
+
+// 后端拉起函数
+const startBackend = () => {
+  portFound = false;
+  backendPort = 0;
+  
+  console.log(`🚀 [ElectroBun] 正在静默拉起 Robyn 后端引擎，物理路径: ${backendPath}`);
+  
+  backendProcess = spawn({
+    cmd: ["uv", "run", "python", "app.py"],
+    cwd: backendPath,
+    stdout: "pipe",
+    stderr: "pipe", 
+  });
+  
+  handleOutput(backendProcess.stdout, "STDOUT");
+  handleOutput(backendProcess.stderr, "STDERR");
+  
+  // 启动 10 秒超时熔断器：若在规定时间内未能成功解析并绑定有效随机端口，强制停机并抛出排错指引
+  const LAUNCH_TIMEOUT_MS = 10000;
+  if (timeoutTimer) {
+    clearTimeout(timeoutTimer);
+  }
+  timeoutTimer = setTimeout(() => {
+    if (!portFound) {
+      console.error(`\n❌ [ElectroBun] 熔断器触发：后端引擎未能在 ${LAUNCH_TIMEOUT_MS / 1000} 秒内成功绑定有效端口，启动超时！`);
+      console.error(`💡 [排错指引]：`);
+      console.error(`   1. 请确认本地已通过 'uv' 安装相关 Python 依赖环境。`);
+      console.error(`   2. 请尝试手动在终端执行: cd src-app/backend && uv run python app.py`);
+      console.error(`   3. 检查是否有防火墙或安全规则限制了本机的网络端口分配。`);
+      killBackendWithCode(1, false);
+    }
+  }, LAUNCH_TIMEOUT_MS);
+};
+
+// 首次拉起后端
+startBackend();
 
 // 监听常见系统退出信号，保障生命周期强一致性
 process.on("SIGINT", killBackend);
@@ -120,12 +198,36 @@ process.on("SIGTERM", killBackend);
 process.on("exit", killBackend);
 
 // 4. 挂载 Electrobun 原生视窗
-const win = new Electrobun.BrowserWindow({
+win = new Electrobun.BrowserWindow({
     title: "ERTH Assistant",
     frame: {
         width: 900,
         height: 700
     },
-    url: "views://main/index.html" 
+    url: "views://main/index.html"
 });
+
+// 监听 Webview 的 DOM 就绪事件，确保在页面重载或滞后加载时，能够成功同步最新的后端端口
+win.webview.on("dom-ready", () => {
+    if (portFound && backendPort > 0) {
+        win.webview.executeJavascript(`
+            window.__ENV__ = {
+                BACKEND_PORT: ${backendPort}
+            };
+            window.dispatchEvent(new CustomEvent('backend-ready', { 
+                detail: { port: ${backendPort} } 
+            }));
+        `);
+    }
+});
+
+// 可以手动在需要调试时开启 DevTools，此处关闭自动拉起
+// setTimeout(() => {
+//     console.log("[ElectroBun] Opening DevTools...");
+//     win.webview.openDevTools();
+// }, 2000);
+
+
+
+
 

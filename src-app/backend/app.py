@@ -1,5 +1,5 @@
-# [ANCHOR: CH-02]
-# Description: Robyn 后端边车服务入口，配置 Port 0 以供操作系统随机分配，注册本地数据库初始化与 health 心跳检测。
+# [ANCHOR: CH-03]
+# Description: Robyn 后端边车服务入口，配置 Port 0 以供操作系统随机分配，注册本地数据库初始化、health 完整检测及 Watchdog 专属的极简 /ping 心跳回复端点。
 # Status: Verified
 
 from robyn import Robyn, Request, Response
@@ -56,6 +56,16 @@ async def health_check(request: Request):
                 "message": f"Database unavailable: {str(e)}"
             })
         )
+
+@app.get("/ping")
+def ping(request: Request):
+    """Watchdog 看门狗专属心跳探测端点，极低开销"""
+    return Response(
+        status_code=200,
+        headers={"Content-Type": "application/json"},
+        description=json.dumps({"status": "pong"})
+    )
+
 
 if __name__ == "__main__":
     # 使用 Port 0 启动，操作系统分配空闲随机端口，杜绝冲突硬编码
