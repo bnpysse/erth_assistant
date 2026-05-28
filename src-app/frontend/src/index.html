@@ -180,6 +180,215 @@
                 box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
             }
         }
+
+        /* ==================== 待办中心 Premium CSS 体系 ==================== */
+        .todo-card {
+            width: 100%;
+            max-width: 600px;
+            background: rgba(27, 33, 47, 0.7);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            animation: fadeIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+            box-sizing: border-box;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .todo-card h2 {
+            margin: 0;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            letter-spacing: 0.02em;
+        }
+
+        /* 统一输入框与提交按钮 */
+        .todo-form {
+            display: flex;
+            gap: 12px;
+        }
+
+        .todo-input {
+            flex: 1;
+            background: #0b0e14;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .todo-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.25);
+            background: #0d121c;
+        }
+
+        .todo-btn-add {
+            background: var(--accent-color);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        .todo-btn-add:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
+        }
+
+        .todo-btn-add:active {
+            transform: translateY(1px);
+        }
+
+        /* 列表项布局 */
+        .todo-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 380px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        /* 自定义列表滚动条 */
+        .todo-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .todo-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .todo-list::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+        .todo-list::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        .todo-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            background: rgba(18, 22, 32, 0.45);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .todo-item:hover {
+            border-color: rgba(59, 130, 246, 0.25);
+            background: rgba(18, 22, 32, 0.7);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .todo-item-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* 状态微切换复选框 */
+        .todo-toggle-btn {
+            background: none;
+            border: 2px solid var(--border-color);
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            color: transparent;
+            font-size: 0.75rem;
+            font-weight: bold;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-shrink: 0;
+        }
+
+        .todo-toggle-btn:hover {
+            border-color: var(--accent-color);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .todo-toggle-btn.completed {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .todo-text {
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: all 0.25s ease;
+        }
+
+        .todo-text.completed {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+            opacity: 0.6;
+        }
+
+        /* 删除按钮悬浮显隐 */
+        .todo-btn-delete {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.25s ease;
+            opacity: 0;
+        }
+
+        .todo-item:hover .todo-btn-delete {
+            opacity: 0.7;
+        }
+
+        .todo-item:hover .todo-btn-delete:hover {
+            opacity: 1;
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.12);
+        }
     </style>
 </head>
 <body>
@@ -274,6 +483,25 @@
                 // 端口未协商就绪时，拦截并挂起请求，防止网络报错
                 evt.preventDefault();
                 console.warn('⚠️ [Frontend] 后端通信端口未就绪，阻止并挂起 HTMX 请求');
+            }
+        });
+
+        // 自动清空表单：HTMX 表单提交成功后自动 reset
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            if (evt.detail.successful) {
+                const target = evt.detail.elt;
+                if (target && target.tagName === 'FORM') {
+                    target.reset();
+                }
+            }
+        });
+
+        // 选项卡激活样式切换
+        document.body.addEventListener('click', function(evt) {
+            const tabBtn = evt.target.closest('.tab-btn');
+            if (tabBtn) {
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                tabBtn.classList.add('active');
             }
         });
     </script>
