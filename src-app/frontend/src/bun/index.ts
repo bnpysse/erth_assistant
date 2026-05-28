@@ -95,6 +95,7 @@ const handleOutput = async (stream: ReadableStream, label: string) => {
           }
           console.log(`\n⚡ [ElectroBun] 守护进程已挂载，后端真实通信端口: ${backendPort}`);
           console.log(`[ElectroBun] 可通过 http://127.0.0.1:${backendPort} 访问`);
+          console.log(`[ElectroBun] 零信任 Opaque Token: ${agentSecretToken}`);
           
           // 开启/重置心跳探测看门狗
           startWatchdog();
@@ -170,11 +171,12 @@ const startBackend = () => {
   console.log(`🚀 [ElectroBun] 正在静默拉起 Robyn 后端引擎，物理路径: ${backendPath}`);
   
   backendProcess = spawn({
-    cmd: ["uv", "run", "python", "app.py"],
+    cmd: ["uv", "run", "python", "-u", "app.py"],
     cwd: backendPath,
     env: {
       ...process.env,
-      AGENT_SECRET_TOKEN: agentSecretToken
+      AGENT_SECRET_TOKEN: agentSecretToken,
+      PYTHONUNBUFFERED: "1"
     },
     stdout: "pipe",
     stderr: "pipe", 

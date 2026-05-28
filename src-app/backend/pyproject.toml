@@ -7,4 +7,6 @@ requires-python = ">=3.10"
 dependencies = [
     "robyn>=0.84.0",
     "libsql-client>=0.1.0",
+    "sqlmodel>=0.0.38",
+    "sqlalchemy-libsql>=0.2.0",
 ]

@@ -4,7 +4,9 @@
 
 import os
 from robyn import Robyn, Request, Response, ALLOW_CORS
-from db import init_db, get_db_client
+from robyn.types import PathParams
+from db import init_db, engine, Todo, get_active_todos, add_todo, toggle_todo_status, soft_delete_todo
+from sqlmodel import Session, select
 import json
 
 app = Robyn(__file__)
@@ -54,28 +56,28 @@ async def health_check(request: Request):
     不仅返回服务状态，更深入数据层执行连通性测试，向主进程上报真实状态
     """
     try:
-        client = get_db_client()
-        # 测试读取哨兵数据
-        result = await client.execute("SELECT id, title FROM todos WHERE is_deleted = 0 LIMIT 1")
-        if len(result.rows) > 0:
-            status = "success"
-            db_msg = f"Connected. Active sentinel title: {result.rows[0]['title']}"
-        else:
-            status = "warning"
-            db_msg = "Connected, but no active tasks found."
-            
-        return Response(
-            status_code=200,
-            headers={"Content-Type": "application/json"},
-            description=json.dumps({
-                "status": status,
-                "data": {
-                    "service": "robyn-sidecar",
-                    "database": "libsql",
-                    "message": db_msg
-                }
-            })
-        )
+        with Session(engine) as session:
+            statement = select(Todo).where(Todo.is_deleted == 0).limit(1)
+            result = session.exec(statement).first()
+            if result:
+                status = "success"
+                db_msg = f"Connected. Active sentinel title: {result.title}"
+            else:
+                status = "warning"
+                db_msg = "Connected, but no active tasks found."
+                
+            return Response(
+                status_code=200,
+                headers={"Content-Type": "application/json"},
+                description=json.dumps({
+                    "status": status,
+                    "data": {
+                        "service": "robyn-sidecar",
+                        "database": "sqlmodel",
+                        "message": db_msg
+                    }
+                })
+            )
     except Exception as e:
         return Response(
             status_code=500,
@@ -94,6 +96,113 @@ def ping(request: Request):
         headers={"Content-Type": "application/json"},
         description=json.dumps({"status": "pong"})
     )
+
+@app.get("/api/v1/todos")
+async def get_todos(request: Request):
+    try:
+        todos = await get_active_todos()
+        return Response(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps(todos)
+        )
+    except Exception as e:
+        return Response(
+            status_code=500,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps({"error": str(e)})
+        )
+
+@app.post("/api/v1/todos")
+async def create_todo(request: Request):
+    try:
+        try:
+            body = request.json()
+        except Exception:
+            body = json.loads(request.body) if request.body else {}
+            
+        title = body.get("title")
+        if not title:
+            return Response(
+                status_code=400,
+                headers={"Content-Type": "application/json"},
+                description=json.dumps({"error": "Missing field: title"})
+            )
+            
+        todo = await add_todo(title)
+        return Response(
+            status_code=201,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps(todo)
+        )
+    except Exception as e:
+        return Response(
+            status_code=500,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps({"error": str(e)})
+        )
+
+@app.put("/api/v1/todos/:id/toggle")
+async def toggle_todo(request: Request, id: str):
+    try:
+        todo_id = id
+        if not todo_id:
+            return Response(
+                status_code=400,
+                headers={"Content-Type": "application/json"},
+                description=json.dumps({"error": "Missing parameter: id"})
+            )
+            
+        todo = await toggle_todo_status(todo_id)
+        if todo is None:
+            return Response(
+                status_code=404,
+                headers={"Content-Type": "application/json"},
+                description=json.dumps({"error": "Todo not found or already deleted"})
+            )
+            
+        return Response(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps(todo)
+        )
+    except Exception as e:
+        return Response(
+            status_code=500,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps({"error": str(e)})
+        )
+
+@app.delete("/api/v1/todos/:id")
+async def delete_todo(request: Request, id: str):
+    try:
+        todo_id = id
+        if not todo_id:
+            return Response(
+                status_code=400,
+                headers={"Content-Type": "application/json"},
+                description=json.dumps({"error": "Missing parameter: id"})
+            )
+            
+        success = await soft_delete_todo(todo_id)
+        if not success:
+            return Response(
+                status_code=404,
+                headers={"Content-Type": "application/json"},
+                description=json.dumps({"error": "Todo not found or already deleted"})
+            )
+            
+        return Response(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps({"status": "success", "message": f"Todo {todo_id} soft deleted"})
+        )
+    except Exception as e:
+        return Response(
+            status_code=500,
+            headers={"Content-Type": "application/json"},
+            description=json.dumps({"error": str(e)})
+        )
 
 
 if __name__ == "__main__":

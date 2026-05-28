@@ -1,17 +1,29 @@
 import os
 import time
 import uuid
-import libsql_client
+from sqlmodel import Field, SQLModel, create_engine, Session, select
+import sqlalchemy_libsql  # 注册 sqlite+libsql 方言以支持 Turso 远程连接
 
-DB_FILE = "local_edge.db"
-_client = None
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///local_edge.db")
 
-def get_db_client() -> libsql_client.LibsqlClient:
-    """获取 libSQL 客户端单例"""
-    global _client
-    if _client is None:
-        _client = libsql_client.create_client(f"file:{DB_FILE}")
-    return _client
+# SQLite 特殊连接参数配置
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+# 实例化 SQLModel 引擎
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
+
+class Todo(SQLModel, table=True):
+    """待办事项数据模型"""
+    __tablename__ = "todos"
+    
+    id: str = Field(primary_key=True)
+    title: str
+    is_completed: int = Field(default=0)
+    is_deleted: int = Field(default=0)
+    created_at: int
+    updated_at: int
 
 def generate_uuidv7() -> uuid.UUID:
     """
@@ -50,25 +62,72 @@ def generate_uuidv7() -> uuid.UUID:
 
 async def init_db():
     """初始化本地数据库，建立 todos 表结构"""
-    client = get_db_client()
-    
-    # 建立具备 UUIDv7 主键与 Tombstone 机制的本地表
-    await client.execute("""
-        CREATE TABLE IF NOT EXISTS todos (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            is_deleted INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        )
-    """)
+    SQLModel.metadata.create_all(engine)
     
     # 写入一条系统哨兵测试数据 (若表为空)
-    result = await client.execute("SELECT COUNT(*) as count FROM todos")
-    if result.rows[0]["count"] == 0:
-        sentinel_id = str(generate_uuidv7())
-        now = int(time.time() * 1000)
-        await client.execute(
-            "INSERT INTO todos (id, title, is_deleted, created_at, updated_at) VALUES (?, ?, 0, ?, ?)",
-            [sentinel_id, "ERTH Engine Database Initialized Successfully", now, now]
-        )
+    with Session(engine) as session:
+        statement = select(Todo)
+        results = session.exec(statement).all()
+        if not results:
+            sentinel_id = str(generate_uuidv7())
+            now = int(time.time() * 1000)
+            sentinel = Todo(
+                id=sentinel_id,
+                title="ERTH Engine Database Initialized Successfully",
+                is_completed=0,
+                is_deleted=0,
+                created_at=now,
+                updated_at=now
+            )
+            session.add(sentinel)
+            session.commit()
+
+async def get_active_todos() -> list:
+    """获取所有未被逻辑删除的待办事项，按创建时间倒序排列"""
+    with Session(engine) as session:
+        statement = select(Todo).where(Todo.is_deleted == 0).order_by(Todo.created_at.desc())
+        results = session.exec(statement).all()
+        return [todo.model_dump() for todo in results]
+
+async def add_todo(title: str) -> dict:
+    """添加新的待办事项，生成 UUIDv7 并返回事项字典"""
+    todo_id = str(generate_uuidv7())
+    now = int(time.time() * 1000)
+    todo = Todo(
+        id=todo_id,
+        title=title,
+        is_completed=0,
+        is_deleted=0,
+        created_at=now,
+        updated_at=now
+    )
+    with Session(engine) as session:
+        session.add(todo)
+        session.commit()
+        session.refresh(todo)
+        return todo.model_dump()
+
+async def toggle_todo_status(todo_id: str) -> dict | None:
+    """翻转指定 ID 待办事项的完成状态，并更新时间戳"""
+    with Session(engine) as session:
+        todo = session.get(Todo, todo_id)
+        if not todo or todo.is_deleted == 1:
+            return None
+        todo.is_completed = 1 if todo.is_completed == 0 else 0
+        todo.updated_at = int(time.time() * 1000)
+        session.add(todo)
+        session.commit()
+        session.refresh(todo)
+        return todo.model_dump()
+
+async def soft_delete_todo(todo_id: str) -> bool:
+    """标记待办事项为逻辑删除 (Tombstone)"""
+    with Session(engine) as session:
+        todo = session.get(Todo, todo_id)
+        if not todo or todo.is_deleted == 1:
+            return False
+        todo.is_deleted = 1
+        todo.updated_at = int(time.time() * 1000)
+        session.add(todo)
+        session.commit()
+        return True
