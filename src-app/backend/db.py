@@ -25,6 +25,17 @@ class Todo(SQLModel, table=True):
     created_at: int
     updated_at: int
 
+class Journal(SQLModel, table=True):
+    """全景日志数据模型"""
+    __tablename__ = "journals"
+    
+    id: str = Field(primary_key=True)
+    title: str
+    content: str
+    is_deleted: int = Field(default=0)
+    created_at: int
+    updated_at: int
+
 def generate_uuidv7() -> uuid.UUID:
     """
     手动实现 RFC 9562 兼容的 UUIDv7 生成器
@@ -81,6 +92,31 @@ async def init_db():
             )
             session.add(sentinel)
             session.commit()
+            
+    # 写入 Journal 种子数据 (若表为空)
+    with Session(engine) as session:
+        statement = select(Journal)
+        if not session.exec(statement).all():
+            now = int(time.time() * 1000)
+            j1 = Journal(
+                id=str(generate_uuidv7()), 
+                title="晨间站会", 
+                content="# 晨间站会\n\n- 昨日进展：\n- 今日计划：\n- 风险与阻碍：\n", 
+                is_deleted=0, 
+                created_at=now, 
+                updated_at=now
+            )
+            j2 = Journal(
+                id=str(generate_uuidv7()), 
+                title="Bug 报告", 
+                content="# Bug 报告\n\n- 现象描述：\n- 根因分析：\n- 修复方案：\n", 
+                is_deleted=0, 
+                created_at=now+1, 
+                updated_at=now+1
+            )
+            session.add(j1)
+            session.add(j2)
+            session.commit()
 
 async def get_active_todos() -> list:
     """获取所有未被逻辑删除的待办事项，按创建时间倒序排列"""
@@ -129,5 +165,57 @@ async def soft_delete_todo(todo_id: str) -> bool:
         todo.is_deleted = 1
         todo.updated_at = int(time.time() * 1000)
         session.add(todo)
+        session.commit()
+        return True
+
+async def get_latest_journal() -> dict | None:
+    """获取最新的一条未删除日志"""
+    with Session(engine) as session:
+        statement = select(Journal).where(Journal.is_deleted == 0).order_by(Journal.created_at.desc()).limit(1)
+        result = session.exec(statement).first()
+        return result.model_dump() if result else None
+
+async def get_journal_history() -> list:
+    """获取所有未删除日志的摘要"""
+    with Session(engine) as session:
+        statement = select(Journal).where(Journal.is_deleted == 0).order_by(Journal.created_at.desc())
+        results = session.exec(statement).all()
+        return [j.model_dump() for j in results]
+
+async def get_specific_journal(journal_id: str) -> dict | None:
+    """获取指定的日志"""
+    with Session(engine) as session:
+        journal = session.get(Journal, journal_id)
+        if not journal or journal.is_deleted == 1:
+            return None
+        return journal.model_dump()
+
+async def create_journal(title: str, content: str) -> dict:
+    """创建并保存新日志"""
+    journal_id = str(generate_uuidv7())
+    now = int(time.time() * 1000)
+    journal = Journal(
+        id=journal_id,
+        title=title,
+        content=content,
+        is_deleted=0,
+        created_at=now,
+        updated_at=now
+    )
+    with Session(engine) as session:
+        session.add(journal)
+        session.commit()
+        session.refresh(journal)
+        return journal.model_dump()
+
+async def soft_delete_journal(journal_id: str) -> bool:
+    """逻辑删除指定的日志"""
+    with Session(engine) as session:
+        journal = session.get(Journal, journal_id)
+        if not journal or journal.is_deleted == 1:
+            return False
+        journal.is_deleted = 1
+        journal.updated_at = int(time.time() * 1000)
+        session.add(journal)
         session.commit()
         return True

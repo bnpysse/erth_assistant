@@ -5,9 +5,13 @@
 import os
 from robyn import Robyn, Request, Response, ALLOW_CORS
 from robyn.types import PathParams
-from db import init_db, engine, Todo, get_active_todos, add_todo, toggle_todo_status, soft_delete_todo
+from db import (
+    init_db, engine, Todo, get_active_todos, add_todo, toggle_todo_status, soft_delete_todo,
+    Journal, get_latest_journal, get_journal_history, get_specific_journal, create_journal, soft_delete_journal
+)
 from sqlmodel import Session, select
 import json
+import markdown
 
 app = Robyn(__file__)
 
@@ -36,7 +40,7 @@ def auth_middleware(request: Request):
 # 启用官方 CORS，并显式放行授权及 HTMX 的全套特征 Headers
 ALLOW_CORS(app, origins=["*"], headers=[
     "Authorization", "Content-Type", 
-    "hx-target", "hx-current-url", "hx-request", "hx-trigger"
+    "hx-target", "hx-current-url", "hx-request", "hx-trigger", "hx-trigger-name"
 ])
 
 @app.startup_handler
@@ -408,38 +412,153 @@ async def delete_todo_v1(request: Request, id: str):
 async def delete_task_v1(request: Request, id: str):
     return await handle_delete_todo(request, id)
 
-@app.get("/api/v1/notebook")
-async def get_notebook(request: Request):
-    """全景日志超媒体占位，展示第八章进化预告"""
-    is_htmx = request.headers.get("hx-request") == "true"
-    
-    html_placeholder = """
-    <div class="todo-card" style="text-align: center; max-width: 500px; animation: fadeIn 0.4s ease-out;">
-        <h2 style="justify-content: center; margin-bottom: 16px;">📓 全景日志 (Notebook)</h2>
-        <p style="color: var(--text-secondary); line-height: 1.6; margin-bottom: 24px;">
-            欢迎来到全景日志模块。当前章节任务专注于 HTMX 超媒体引擎的并轨与深水区调试。
-        </p>
-        <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-            <span style="font-size: 1.2rem; display: block; margin-bottom: 8px;">🚀 敬请期待第八章：</span>
-            <span style="color: var(--text-primary); font-weight: 600;">《超媒体的自我进化——Markdown 随笔日记本》</span>
-        </div>
-        <p style="font-size: 0.85rem; color: var(--text-secondary);">
-            在这里，我们将实现一个完整的 Local-First 的随笔交互面板，支持 Markdown 渲染与存储。
-        </p>
+# ==================== Journal / Notebook Handlers ====================
+
+def render_journal_history_fragment(journal: dict) -> str:
+    return f"""
+    <div class="group flex items-center justify-between" style="padding: 12px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+        <button hx-get="/api/v1/journals/{journal['id']}" hx-swap="none" style="background: none; border: none; color: var(--text-primary); cursor: pointer; text-align: left; flex: 1; padding: 0; margin: 0; outline: none;">
+            📝 {journal['title']}
+        </button>
+        <button 
+            hx-delete="/api/v1/journals/{journal['id']}" 
+            hx-target="closest div.group" 
+            hx-swap="outerHTML"
+            style="background: none; border: none; color: #ef4444; cursor: pointer; opacity: 0; padding: 4px;"
+            onmouseover="this.style.opacity=1"
+            onmouseout="this.style.opacity=0"
+        >
+            ✕
+        </button>
     </div>
     """
+
+def render_notebook_center(journals: list) -> str:
+    """渲染全景日志 HTML 骨架"""
+    history_html = "".join(render_journal_history_fragment(j) for j in journals)
+    return f"""
+    <div style="display: flex; gap: 24px; width: 100%; max-width: 1400px; height: calc(100vh - 80px); animation: fadeIn 0.4s ease-out;">
+        <!-- 左侧：历史纪要 -->
+        <div style="flex: 1; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; overflow: hidden; min-width: 260px;">
+            <h3 style="color: var(--accent-color); margin-top: 0;">📚 历史纪要</h3>
+            <div id="journal-history" hx-get="/api/v1/journals/history" hx-trigger="load, journalSaved from:body" hx-on::response-error="this.innerHTML = '<div style=\\'color: #ef4444;\\'>加载失败</div>'" style="overflow-y: auto; flex: 1;">
+                {history_html}
+            </div>
+        </div>
+
+        <!-- 中间：编辑器 -->
+        <div style="flex: 2; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; min-width: 350px;">
+            <div hx-get="/api/v1/journals/latest" hx-trigger="load" class="hidden" style="display: none;"></div>
+            <form hx-post="/api/v1/journals" hx-swap="none" style="display: flex; flex-direction: column; height: 100%; gap: 16px;">
+                <input id="journal-title" type="text" name="title" placeholder="输入纪要标题..." required style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 1.1rem; outline: none; transition: border-color 0.3s;" onfocus="this.style.borderColor='var(--accent-color)'" onblur="this.style.borderColor='var(--border-color)'" />
+                <textarea id="journal-editor" name="content" placeholder="使用 Markdown 记录..." required 
+                    hx-post="/api/v1/markdown/preview" 
+                    hx-trigger="keyup changed delay:500ms, load" 
+                    hx-target="#markdown-preview"
+                    style="flex: 1; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.95rem; outline: none; resize: none; font-family: monospace; transition: border-color 0.3s;"
+                    onfocus="this.style.borderColor='var(--accent-color)'" onblur="this.style.borderColor='var(--border-color)'"
+                ></textarea>
+                <button type="submit" style="background: var(--accent-color); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); transition: all 0.3s;">沉淀入库 (Save)</button>
+            </form>
+        </div>
+
+        <!-- 右侧：Markdown 预览 -->
+        <div style="flex: 2; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; overflow-y: auto; min-width: 400px;">
+            <h3 style="color: var(--accent-color); margin-top: 0; margin-bottom: 16px;">👁️ 实时预览</h3>
+            <div id="markdown-preview" style="color: var(--text-primary); line-height: 1.6; padding-right: 12px; word-wrap: break-word;">
+                <p style="color: var(--text-secondary);">等待编译 HTML 碎片...</p>
+            </div>
+        </div>
+    </div>
+    """
+
+@app.get("/api/v1/notebook")
+async def get_notebook(request: Request):
+    """全景日志主视图"""
+    is_htmx = request.headers.get("hx-request") == "true"
+    journals = await get_journal_history()
+    
     if is_htmx:
         return Response(
             status_code=200,
             headers={"Content-Type": "text/html; charset=utf-8"},
-            description=html_placeholder
+            description=render_notebook_center(journals)
         )
     else:
         return Response(
             status_code=200,
             headers={"Content-Type": "application/json"},
-            description=json.dumps({"message": "Notebook placeholder. Unlock in Chapter 8."})
+            description=json.dumps({"message": "Notebook structure"})
         )
+
+@app.post("/api/v1/markdown/preview")
+async def markdown_preview(request: Request):
+    """编译 Markdown 并返回 HTML"""
+    body = get_request_body_params(request)
+    content = body.get("content", "")
+    html = markdown.markdown(content, extensions=['fenced_code', 'tables'])
+    return Response(
+        status_code=200,
+        headers={"Content-Type": "text/html; charset=utf-8"},
+        description=html
+    )
+
+def render_oob_editor(title: str, content: str) -> str:
+    # 提取了可复用部分，防止前端样式断开
+    return f"""
+    <input id="journal-title" type="text" name="title" value="{title}" placeholder="输入纪要标题..." required style="background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 1.1rem; outline: none; transition: border-color 0.3s;" onfocus="this.style.borderColor='var(--accent-color)'" onblur="this.style.borderColor='var(--border-color)'" hx-swap-oob="outerHTML">
+    <textarea id="journal-editor" name="content" placeholder="使用 Markdown 记录..." required 
+        hx-post="/api/v1/markdown/preview" 
+        hx-trigger="keyup changed delay:500ms, load" 
+        hx-target="#markdown-preview"
+        style="flex: 1; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.95rem; outline: none; resize: none; font-family: monospace; transition: border-color 0.3s;"
+        onfocus="this.style.borderColor='var(--accent-color)'" onblur="this.style.borderColor='var(--border-color)'"
+        hx-swap-oob="outerHTML"
+    >{content}</textarea>
+    """
+
+@app.get("/api/v1/journals/latest")
+async def fetch_latest_journal_route(request: Request):
+    latest = await get_latest_journal()
+    title = latest["title"] if latest else ""
+    content = latest["content"] if latest else ""
+    return Response(status_code=200, headers={"Content-Type": "text/html; charset=utf-8"}, description=render_oob_editor(title, content))
+
+@app.get("/api/v1/journals/:id")
+async def fetch_specific_journal_route(request: Request, id: str):
+    journal_id = id
+    journal = await get_specific_journal(journal_id)
+    title = journal["title"] if journal else ""
+    content = journal["content"] if journal else ""
+    return Response(status_code=200, headers={"Content-Type": "text/html; charset=utf-8"}, description=render_oob_editor(title, content))
+
+@app.get("/api/v1/journals/history")
+async def fetch_journal_history_route(request: Request):
+    journals = await get_journal_history()
+    html = "".join(render_journal_history_fragment(j) for j in journals)
+    return Response(status_code=200, headers={"Content-Type": "text/html; charset=utf-8"}, description=html)
+
+@app.post("/api/v1/journals")
+async def handle_create_journal_route(request: Request):
+    body = get_request_body_params(request)
+    title = body.get("title", "")
+    content = body.get("content", "")
+    await create_journal(title, content)
+    return Response(
+        status_code=200, 
+        headers={
+            "Content-Type": "text/html; charset=utf-8", 
+            "HX-Trigger": "journalSaved", 
+            "Access-Control-Expose-Headers": "HX-Trigger"
+        }, 
+        description="保存成功"
+    )
+
+@app.delete("/api/v1/journals/:id")
+async def delete_journal_route(request: Request, id: str):
+    journal_id = id
+    await soft_delete_journal(journal_id)
+    return Response(status_code=200, headers={"Content-Type": "text/html; charset=utf-8"}, description="")
 
 
 if __name__ == "__main__":
