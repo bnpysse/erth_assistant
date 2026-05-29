@@ -397,6 +397,7 @@
     <aside class="sidebar">
         <div class="brand">ERTH Console</div>
         <nav class="nav-group">
+            <!-- [ANCHOR: CH-07: TODO_PANEL] -->
             <!-- Tab 1 (待办中心): 绑定 hx-get 并指定目标渲染区 -->
             <button class="tab-btn active"
                     hx-get="/api/v1/todos"
@@ -405,12 +406,21 @@
                 <span>📅</span> 待办中心
             </button>
             
+            <!-- [ANCHOR: CH-08: NOTEBOOK_PANEL] -->
             <!-- Tab 2 (全景日志): 绑定 hx-get 并指定目标渲染区 -->
             <button class="tab-btn"
                     hx-get="/api/v1/notebook"
                     hx-target="#control-panel-viewport"
                     hx-trigger="click">
                 <span>📓</span> 全景日志
+            </button>
+
+            <!-- Tab 3 (外部数据): 绑定 hx-get 并指定目标渲染区 -->
+            <button class="tab-btn"
+                    hx-get="/api/v1/pim/panel"
+                    hx-target="#control-panel-viewport"
+                    hx-trigger="click">
+                <span>⚡</span> 外部数据
             </button>
         </nav>
     </aside>

@@ -10,4 +10,5 @@ dependencies = [
     "sqlmodel>=0.0.38",
     "sqlalchemy-libsql>=0.2.0",
     "markdown>=3.10.2",
+    "httpx>=0.27.0",
 ]

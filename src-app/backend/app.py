@@ -24,7 +24,7 @@ def auth_middleware(request: Request):
     if request.method == "OPTIONS":
         return request
         
-    auth_header = request.headers.get("authorization")
+    auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
     expected_token = f"Bearer {AGENT_SECRET_TOKEN}"
     
     # 强制比对身份令牌，拦截非法流量并响应 403
@@ -105,9 +105,10 @@ import urllib.parse
 
 def get_request_body_params(request: Request) -> dict:
     """智能解析请求体，兼容 application/json 与 application/x-www-form-urlencoded"""
-    content_type = request.headers.get("content-type") or ""
+    # 应对不同版本/内核对 Header 大小写敏感的问题
+    content_type = request.headers.get("Content-Type") or request.headers.get("content-type") or request.headers.get("Content-type") or ""
     body_str = ""
-    if isinstance(request.body, bytes):
+    if isinstance(request.body, (bytes, bytearray)):
         body_str = request.body.decode("utf-8")
     elif isinstance(request.body, str):
         body_str = request.body
@@ -119,7 +120,10 @@ def get_request_body_params(request: Request) -> dict:
         try:
             return json.loads(body_str) if body_str else {}
         except Exception:
-            return {}
+            # 极限兜底：如果 JSON 解析失败（通常因为 WebKit 发送了奇怪的 Header 导致 Content-Type 没被捕获），
+            # 且 body 实际上是 urlencoded，则强行使用 parse_qs 解析
+            parsed = urllib.parse.parse_qs(body_str)
+# [ANCHOR: CH-07: HTMX_TODO_FRAGMENTS]
 
 def render_task_fragment(todo: dict) -> str:
     """将单个待办事项渲染为超媒体 HTML 碎片"""
@@ -182,6 +186,8 @@ def render_todo_center(todos: list) -> str:
         </ul>
     </div>
     """
+
+# [ANCHOR: CH-06: REST_API_ENDPOINTS]
 
 @app.get("/api/v1/todos")
 async def get_todos(request: Request):
@@ -412,6 +418,7 @@ async def delete_todo_v1(request: Request, id: str):
 async def delete_task_v1(request: Request, id: str):
     return await handle_delete_todo(request, id)
 
+# [ANCHOR: CH-08: MARKDOWN_JOURNAL_MODULE]
 # ==================== Journal / Notebook Handlers ====================
 
 def render_journal_history_fragment(journal: dict) -> str:
@@ -424,11 +431,12 @@ def render_journal_history_fragment(journal: dict) -> str:
             hx-delete="/api/v1/journals/{journal['id']}" 
             hx-target="closest div.group" 
             hx-swap="outerHTML"
-            style="background: none; border: none; color: #ef4444; cursor: pointer; opacity: 0; padding: 4px;"
+            style="background: none; border: none; cursor: pointer; opacity: 0; padding: 4px; font-size: 1.1rem;"
             onmouseover="this.style.opacity=1"
             onmouseout="this.style.opacity=0"
+            title="删除此纪要"
         >
-            ✕
+            🗑️
         </button>
     </div>
     """
@@ -497,6 +505,7 @@ async def markdown_preview(request: Request):
     body = get_request_body_params(request)
     content = body.get("content", "")
     html = markdown.markdown(content, extensions=['fenced_code', 'tables'])
+    
     return Response(
         status_code=200,
         headers={"Content-Type": "text/html; charset=utf-8"},
@@ -511,6 +520,7 @@ def render_oob_editor(title: str, content: str) -> str:
         hx-post="/api/v1/markdown/preview" 
         hx-trigger="keyup changed delay:500ms, load" 
         hx-target="#markdown-preview"
+        hx-swap="innerHTML"
         style="flex: 1; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 0.95rem; outline: none; resize: none; font-family: monospace; transition: border-color 0.3s;"
         onfocus="this.style.borderColor='var(--accent-color)'" onblur="this.style.borderColor='var(--border-color)'"
         hx-swap-oob="outerHTML"
@@ -559,6 +569,13 @@ async def delete_journal_route(request: Request, id: str):
     journal_id = id
     await soft_delete_journal(journal_id)
     return Response(status_code=200, headers={"Content-Type": "text/html; charset=utf-8"}, description="")
+
+
+# [ANCHOR: CH-09: ASYNC_PIM_SERVICE]
+# 生产级非阻塞拉取逻辑与错误物理退守
+from routes.pim_routes import pim_router
+app.include_router(pim_router)
+# [ANCHOR_END: CH-09: ASYNC_PIM_SERVICE]
 
 
 if __name__ == "__main__":

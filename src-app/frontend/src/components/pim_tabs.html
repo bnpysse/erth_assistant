@@ -1,0 +1,36 @@
+<!-- [ANCHOR: CH-09: ASYNC_PIM_SERVICE] -->
+<div class="todo-card" style="width: 100%; max-width: 800px; min-height: 400px; display: flex; flex-direction: column; gap: 20px;">
+    <h2>
+        <span>⚡ 外部数据中枢</span>
+        <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-secondary);">实时异构多 I/O 汇聚</span>
+    </h2>
+
+    <!-- Tab 头部导航 -->
+    <div style="display: flex; gap: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+        <div id="tab-weather" class="flex active" 
+             hx-get="/api/v1/pim/weather" 
+             hx-target="#pim-panel" 
+             hx-swap="innerHTML"
+             style="cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; transition: all 0.25s ease; color: var(--text-primary); background-color: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent-color); box-shadow: 0 0 12px rgba(59, 130, 246, 0.1);">
+            ⛅ 天气状况
+        </div>
+        <div id="tab-flight" class="flex" 
+             hx-get="/api/v1/pim/flight" 
+             hx-target="#pim-panel" 
+             hx-swap="innerHTML"
+             style="cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; transition: all 0.25s ease; color: var(--text-secondary); background: none; border: 1px solid transparent;">
+            ✈️ 航班动态
+        </div>
+    </div>
+
+    <!-- PIM 内容承载容器 -->
+    <div id="pim-panel" style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 250px; width: 100%;">
+        <div hx-get="/api/v1/pim/weather" hx-trigger="load" hx-target="#pim-panel" hx-swap="innerHTML" style="display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%;">
+            <div class="pulse-indicator" style="margin-top: 0;">
+                <span class="pulse-dot"></span>
+                <span>正在拉取外部微服务数据...</span>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- [ANCHOR_END: CH-09: ASYNC_PIM_SERVICE] -->
