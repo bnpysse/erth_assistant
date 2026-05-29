@@ -25,6 +25,7 @@ const findBackendPath = () => {
 
 const backendPath = findBackendPath();
 
+// [ANCHOR: CH-04]
 // 零信任防线：动态生成一次性、高强度的 Opaque Token
 const agentSecretToken = crypto.randomUUID();
 
@@ -100,6 +101,7 @@ const handleOutput = async (stream: ReadableStream, label: string) => {
           // 开启/重置心跳探测看门狗
           startWatchdog();
 
+          // [ANCHOR: CH-04]
           // 物理防线并轨：将最新的通讯端口与 Opaque Token 动态注入前台 Webview 容器，并派发就绪事件
           if (win && win.webview) {
             win.webview.executeJavascript(`
@@ -163,6 +165,8 @@ const startWatchdog = () => {
   }, 3000);
 };
 
+// [ANCHOR: CH-01]
+// [ANCHOR: CH-02]
 // 后端拉起函数
 const startBackend = () => {
   portFound = false;
@@ -220,6 +224,7 @@ win = new Electrobun.BrowserWindow({
     url: "views://main/index.html"
 });
 
+// [ANCHOR: CH-04]
 // 监听 Webview 的 DOM 就绪事件，确保在页面重载或滞后加载时，能够成功同步最新的后端端口
 win.webview.on("dom-ready", () => {
     if (portFound && backendPort > 0) {
