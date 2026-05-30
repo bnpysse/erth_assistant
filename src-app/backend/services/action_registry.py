@@ -4,7 +4,7 @@
 
 import inspect
 import json
-from typing import Callable, Any, Dict
+from typing import Callable, Any, Dict, Annotated, get_origin, get_args
 
 class ActionRegistry:
     """
@@ -30,15 +30,30 @@ class ActionRegistry:
                 if param_name == 'self':
                     continue
                 
-                param_type = "string"
-                if param.annotation == int:
-                    param_type = "integer"
-                elif param.annotation == bool:
-                    param_type = "boolean"
+                param_type_str = "string" # 默认推断为 string
+                param_desc = f"参数 {param_name}" # 默认回退描述
+                actual_type = param.annotation
+                
+                # 核心杀招：解析 Annotated[类型, "语义描述"]
+                if get_origin(actual_type) is Annotated:
+                    args = get_args(actual_type)
+                    actual_type = args[0]  # 提取真实物理类型
+                    if len(args) > 1 and isinstance(args[1], str):
+                        param_desc = args[1] # 提取提供给大模型的语义描述
+                
+                # 基础物理类型扩容映射
+                if actual_type == int:
+                    param_type_str = "integer"
+                elif actual_type == float:
+                    param_type_str = "number"
+                elif actual_type == bool:
+                    param_type_str = "boolean"
+                elif actual_type == list or get_origin(actual_type) == list:
+                    param_type_str = "array"
                     
                 parameters[param_name] = {
-                    "type": param_type,
-                    "description": f"Parameter {param_name}"
+                    "type": param_type_str,
+                    "description": param_desc
                 }
                 
                 if param.default == inspect.Parameter.empty:
