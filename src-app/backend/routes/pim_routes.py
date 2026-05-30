@@ -3,6 +3,7 @@
 import os
 from robyn import SubRouter, Request, Response
 from services.pim import fetch_weather_async, fetch_flight_async
+from db import add_todo, toggle_todo_status
 
 # 初始化 PIM 模块的独立子路由器，挂载至 /api/v1/pim
 pim_router = SubRouter(__name__, prefix="/api/v1/pim")
@@ -152,6 +153,13 @@ async def complete_pim_schedule(request: Request):
     2. 利用 OOB 级联漫游，跨越 DOM 树精确消除左侧边栏的“活动小红点”。
     """
     item_id = request.path_params.get("id")
+    
+    # 物理数据防线：将日程强制写入数据库的待办中心并标记为已完成
+    try:
+        todo = await add_todo("与统帅的战略级汇报会议")
+        await toggle_todo_status(todo["id"])
+    except Exception as e:
+        print(f"[PIM] 同步待办中心失败: {e}")
     
     # 局部更新日程项状态
     html = f"""
