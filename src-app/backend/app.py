@@ -579,6 +579,11 @@ from routes.pim_routes import pim_router
 app.include_router(pim_router)
 # [ANCHOR_END: CH-09: ASYNC_PIM_SERVICE]
 
+# [ANCHOR: CH-12: AGENT_BEHAVIOR_ROUTER]
+from routes.agent_routes import agent_router
+app.include_router(agent_router)
+# [ANCHOR_END: CH-12: AGENT_BEHAVIOR_ROUTER]
+
 
 if __name__ == "__main__":
     # 使用 Port 0 启动，操作系统分配空闲随机端口，杜绝冲突硬编码
