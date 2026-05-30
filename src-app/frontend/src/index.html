@@ -6,6 +6,7 @@
     <title>ERTH Assistant</title>
     <!-- 引入 HTMX 灵魂脚本 -->
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
     <style>
         :root {
             --bg-main: #0b0e14;
@@ -421,6 +422,15 @@
                     hx-target="#control-panel-viewport"
                     hx-trigger="click">
                 <span>⚡</span> 外部数据
+            </button>
+
+            <!-- [ANCHOR: CH-13: AI_CHAT_PANEL] -->
+            <!-- Tab 4 (AI 控制台): 绑定 hx-get 并指定目标渲染区 -->
+            <button class="tab-btn"
+                    hx-get="/api/v1/agent/chat_ui"
+                    hx-target="#control-panel-viewport"
+                    hx-trigger="click">
+                <span>🤖</span> AI 控制台
             </button>
         </nav>
     </aside>
