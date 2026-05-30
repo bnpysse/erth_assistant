@@ -12,6 +12,7 @@ from db import (
 from sqlmodel import Session, select
 import json
 import markdown
+from services.clipboard_washer import start_clipboard_monitor
 
 app = Robyn(__file__)
 
@@ -49,6 +50,7 @@ async def startup():
     try:
         await init_db()
         print("[Robyn Backend] Local-First db基盘筑底成功！")
+        start_clipboard_monitor()
     except Exception as e:
         print(f"[ERROR] 数据库基盘初始化失败: {e}")
 

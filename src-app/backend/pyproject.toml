@@ -11,4 +11,5 @@ dependencies = [
     "sqlalchemy-libsql>=0.2.0",
     "markdown>=3.10.2",
     "httpx>=0.27.0",
+    "pyperclip>=1.11.0",
 ]
