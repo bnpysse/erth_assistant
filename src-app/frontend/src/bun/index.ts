@@ -36,6 +36,7 @@ let backendPort = 0;
 let timeoutTimer: any = null;
 let watchdogInterval: any = null;
 let failCount = 0;
+let isDomReady = false;
 
 // 兼容多版本 Robyn/Uvicorn 的端口匹配正则 (支持 http://127.0.0.1:xxxx 或 listening on: 0.0.0.0:xxxx)
 const PORT_CAPTURE_REGEX = /http:\/\/127\.0\.0\.1:(\d+)|listening on: [^:]+:(\d+)/;
@@ -102,8 +103,9 @@ const handleOutput = async (stream: ReadableStream, label: string) => {
           startWatchdog();
 
           // [ANCHOR: CH-04]
-          // 物理防线并轨：将最新的通讯端口与 Opaque Token 动态注入前台 Webview 容器，并派发就绪事件
-          if (win && win.webview) {
+          // 物理防线并轨：将最新的通讯端口与 Opaque Token 动态注入前台 Webview 容器
+          // ⚠️ [修复内核态级崩溃]：禁止在 Webview 尚未触发 dom-ready 前调用 executeJavascript，否则会导致 WebKit 抛出 0xBAD4007 Bus Error
+          if (win && win.webview && isDomReady) {
             win.webview.executeJavascript(`
               window.__ENV__ = {
                 BACKEND_PORT: ${backendPort},
@@ -227,6 +229,7 @@ win = new Electrobun.BrowserWindow({
 // [ANCHOR: CH-04]
 // 监听 Webview 的 DOM 就绪事件，确保在页面重载或滞后加载时，能够成功同步最新的后端端口
 win.webview.on("dom-ready", () => {
+    isDomReady = true;
     if (portFound && backendPort > 0) {
         win.webview.executeJavascript(`
             window.__ENV__ = {
