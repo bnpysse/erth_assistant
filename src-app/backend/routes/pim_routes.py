@@ -33,24 +33,62 @@ def get_tabs_html(active_tab: str) -> str:
 async def get_pim_panel(request: Request):
     """
     读取并返回 PIM 面板 HTML 骨架，用作超媒体初始容器。
+    封存态下直接返回内存中的 HTML，避免跨目录文件读取失败。
     """
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    component_path = os.path.join(base_dir, "..", "frontend", "src", "components", "pim_dashboard.html")
+    html_content = """
+    <!-- [ANCHOR: CH-10] -->
+    <div class="todo-card" style="width: 100%; max-width: 800px; min-height: 400px; display: flex; flex-direction: column; gap: 20px;">
+        <h2>
+            <span>⚡ 外部数据中枢 (PIM)</span>
+            <span style="font-size: 0.85rem; font-weight: normal; color: var(--text-secondary);">多维状态级联漫游</span>
+        </h2>
+
+        <!-- Tab 头部导航 -->
+        <div style="display: flex; gap: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+            <div id="tab-weather" class="flex active" 
+                 hx-get="/api/v1/pim/weather" 
+                 hx-target="#pim-panel" 
+                 hx-swap="innerHTML"
+                 style="cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; transition: all 0.25s ease; color: var(--text-primary); background-color: rgba(59, 130, 246, 0.15); border: 1px solid var(--accent-color); box-shadow: 0 0 12px rgba(59, 130, 246, 0.1);">
+                ⛅ 天气状况
+            </div>
+            <div id="tab-flight" class="flex" 
+                 hx-get="/api/v1/pim/flight" 
+                 hx-target="#pim-panel" 
+                 hx-swap="innerHTML"
+                 style="cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; transition: all 0.25s ease; color: var(--text-secondary); background: none; border: 1px solid transparent;">
+                ✈️ 航班动态
+            </div>
+            <div id="tab-schedule" class="flex" 
+                 hx-get="/api/v1/pim/schedule" 
+                 hx-target="#pim-panel" 
+                 hx-swap="innerHTML"
+                 style="cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; transition: all 0.25s ease; color: var(--text-secondary); background: none; border: 1px solid transparent;">
+                📅 待办日程
+            </div>
+        </div>
+
+        <!-- PIM 内容承载容器 -->
+        <div id="pim-panel" style="flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 250px; width: 100%;">
+            <div hx-get="/api/v1/pim/weather" hx-trigger="load" hx-target="#pim-panel" hx-swap="innerHTML" style="display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%;">
+                <div class="pulse-indicator" style="margin-top: 0;">
+                    <span class="pulse-dot"></span>
+                    <span>正在拉取外部微服务数据...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 利用 OOB 跨越 DOM 树，在左侧边栏注入活动小红点 -->
+        <span id="pim-sidebar-badge" hx-swap-oob="beforeend:button[hx-get='/api/v1/pim/panel']" style="display: inline-block; width: 8px; height: 8px; background: #ef4444; border-radius: 50%; box-shadow: 0 0 8px #ef4444; margin-left: auto;"></span>
+    </div>
+    <!-- [ANCHOR_END: CH-10] -->
+    """
     
-    try:
-        with open(component_path, "r", encoding="utf-8") as f:
-            html_content = f.read()
-        return Response(
-            status_code=200,
-            headers={"Content-Type": "text/html; charset=utf-8"},
-            description=html_content
-        )
-    except Exception as e:
-        return Response(
-            status_code=500,
-            headers={"Content-Type": "text/html; charset=utf-8"},
-            description=f"<div style='color: #ef4444; padding: 20px;'>无法加载 PIM 看板组件: {e}</div>"
-        )
+    return Response(
+        status_code=200,
+        headers={"Content-Type": "text/html; charset=utf-8"},
+        description=html_content
+    )
 
 @pim_router.get("/weather")
 async def get_pim_weather(request: Request):
