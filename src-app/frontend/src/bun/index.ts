@@ -175,8 +175,14 @@ const startBackend = () => {
   
   console.log(`🚀 [ElectroBun] 正在静默拉起 Robyn 后端引擎，物理路径: ${backendPath}`);
   
+  // [ANCHOR: CH-16: 物理路径提权与封存态侦测]
+  const isProd = process.env.NODE_ENV === "production" || process.execPath.includes("MacOS");
+  const backendCmd = isProd 
+      ? [resolve(process.execPath, "../../MacOS/robyn_engine")] // 指向被封存的二进制引擎
+      : ["uv", "run", "python", "-u", "app.py"]; // 开发态动态路由
+
   backendProcess = spawn({
-    cmd: ["uv", "run", "python", "-u", "app.py"],
+    cmd: backendCmd,
     cwd: backendPath,
     env: {
       ...process.env,

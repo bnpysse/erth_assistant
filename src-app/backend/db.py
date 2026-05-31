@@ -1,11 +1,29 @@
 # [ANCHOR: CH-05: SQLMODEL_DATABASE]
 import os
+import sys
 import time
 import uuid
 from sqlmodel import Field, SQLModel, create_engine, Session, select
 import sqlalchemy_libsql  # 注册 sqlite+libsql 方言以支持 Turso 远程连接
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///local_edge.db")
+# [ANCHOR: CH-16: 数据库封存态环境寻址与云边同步]
+if getattr(sys, 'frozen', False):
+    app_data_dir = os.path.expanduser("~/.erth_assistant")
+    os.makedirs(app_data_dir, exist_ok=True)
+    db_path = os.path.join(app_data_dir, "local_edge.db")
+else:
+    db_path = "local_edge.db"
+
+# Turso 云边同步配置 (Embedded Replicas)
+turso_sync_url = os.environ.get("TURSO_SYNC_URL")
+turso_auth_token = os.environ.get("TURSO_AUTH_TOKEN")
+
+if turso_sync_url and turso_auth_token:
+    # 启用云边同步模式 (Local-First + 远程同步)
+    DATABASE_URL = f"sqlite+libsql:///{db_path}?syncUrl={turso_sync_url}&authToken={turso_auth_token}"
+else:
+    # 默认回退到纯本地 SQLite 模式
+    DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
 
 # SQLite 特殊连接参数配置
 connect_args = {}
