@@ -32,7 +32,7 @@ ERTH Assistant 是一款拥有“极客灵魂”的跨平台桌面应用。它�
 ### 本地启动
 ```bash
 # 1. 克隆代码库
-git clone https://github.com/你的用户名/erth_assistant.git
+git clone https://github.com/bnpysse/erth_assistant.git
 cd erth_assistant
 
 # 2. 启动前端与主进程
