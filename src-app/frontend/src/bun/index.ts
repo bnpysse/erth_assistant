@@ -178,7 +178,7 @@ const startBackend = () => {
   // [ANCHOR: CH-16: 物理路径提权与封存态侦测]
   const isProd = process.env.NODE_ENV === "production" || process.execPath.includes("MacOS");
   const backendCmd = isProd 
-      ? [resolve(process.execPath, "../../MacOS/robyn_engine")] // 指向被封存的二进制引擎
+      ? [resolve(process.execPath, "../../MacOS/robyn_engine/robyn_engine")] // 指向被封存的二进制引擎的【内部执行文件】
       : ["uv", "run", "python", "-u", "app.py"]; // 开发态动态路由
 
   backendProcess = spawn({
@@ -317,20 +317,14 @@ try {
     });
 
     win.on('blur', () => {
-        // 延迟失焦过滤
-        if (isFocused && (Date.now() - lastShowTime > 300)) {
-            hideCommander();
-        }
+        // 为了方便测试和正常使用，暂时屏蔽失焦自动隐藏 (Ghost Window Blur Filter)
+        // if (isFocused && (Date.now() - lastShowTime > 300)) {
+        //     hideCommander();
+        // }
     });
 } catch (e) {
     console.error("[ElectroBun] GlobalShortcut 注册失败", e);
 }
-
-// 可以手动在需要调试时开启 DevTools，此处关闭自动拉起
-// setTimeout(() => {
-//     console.log("[ElectroBun] Opening DevTools...");
-//     win.webview.openDevTools();
-// }, 2000);
 
 
 
