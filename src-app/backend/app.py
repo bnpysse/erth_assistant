@@ -589,6 +589,11 @@ from routes.agent_routes import agent_router
 app.include_router(agent_router)
 # [ANCHOR_END: CH-12: AGENT_BEHAVIOR_ROUTER]
 
+# [ANCHOR: CH-15: DYNAMIC_PLUGIN_ROUTER]
+from routes.plugin_routes import plugin_router
+app.include_router(plugin_router)
+# [ANCHOR_END: CH-15: DYNAMIC_PLUGIN_ROUTER]
+
 
 if __name__ == "__main__":
     # 使用 Port 0 启动，操作系统分配空闲随机端口，杜绝冲突硬编码
