@@ -71,7 +71,8 @@ def render_plugin_dashboard() -> str:
         cards += render_plugin_fragment(p, is_active, logs)
         
     if not cards:
-        cards = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">沙箱内未发现可用插件，请放入 src-app/backend/plugins 目录。</div>'
+        from services.plugin_manager import PLUGIN_DIR
+        cards = f'<div style="color: var(--text-secondary); text-align: center; padding: 20px;">沙箱内未发现可用插件，请放入 {PLUGIN_DIR} 目录。</div>'
         
     return f"""
     <div style="width: 100%; max-width: 800px; padding: 24px;">

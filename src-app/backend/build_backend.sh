@@ -17,6 +17,7 @@ uv run pyinstaller --noconfirm \
     --name robyn_engine \
     --hidden-import="sqlmodel" \
     --hidden-import="sqlalchemy_libsql" \
+    --collect-all robyn \
     app.py
 
 echo "✅ 后端引擎封存完毕！"

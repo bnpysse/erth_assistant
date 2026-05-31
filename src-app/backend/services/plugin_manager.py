@@ -6,7 +6,12 @@ import traceback
 from typing import Dict, Any
 
 # 安全常量：限定插件加载的绝对根路径，防范目录穿越 (Directory Traversal)
-PLUGIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "plugins"))
+if getattr(sys, 'frozen', False):
+    # 生产封存态：指向物理用户的边缘存储目录
+    PLUGIN_DIR = os.path.expanduser("~/.erth_assistant/plugins")
+else:
+    # 开发态：指向源码树内的沙箱
+    PLUGIN_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "plugins"))
 
 # 插件注册表：持久化存储当前挂载的热插拔插件
 _plugin_registry: Dict[str, Any] = {}
