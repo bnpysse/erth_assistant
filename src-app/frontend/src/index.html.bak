@@ -4,9 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ERTH Assistant</title>
+    <!-- 引入 HTMX 灵魂脚本 -->
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-dark.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- 剥离第三方 sse.js，采用原生 fetch 流式渲染，防范 macOS WebKit 的内核级 EventSource 跨域崩溃 -->
     <style>
         :root {
@@ -25,23 +24,17 @@
             margin: 0;
             padding: 0;
             font-family: var(--font-stack);
-            /* [ANCHOR: CH-14] 将纯色背景改为带毛玻璃效果的半透明背景 */
-            background-color: rgba(11, 14, 20, 0.65);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+            background-color: var(--bg-main);
             color: var(--text-primary);
             display: flex;
             height: 100vh;
             overflow: hidden;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         /* 统一中枢控制台布局 - 左侧固定 Sidebar */
         .sidebar {
             width: 260px;
-            /* [ANCHOR: CH-14] 侧边栏微透 */
-            background-color: rgba(18, 22, 32, 0.4);
+            background-color: var(--bg-sidebar);
             border-right: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
@@ -431,8 +424,8 @@
                 <span>⚡</span> 外部数据
             </button>
 
-            <!-- [ANCHOR: CH-13: AI_PANEL] -->
-            <!-- Tab 4 (AI 控制台): 原生 Fetch Stream 驱动的 ReAct Agent 面板 -->
+            <!-- [ANCHOR: CH-13: AI_CHAT_PANEL] -->
+            <!-- Tab 4 (AI 控制台): 绑定 hx-get 并指定目标渲染区 -->
             <button class="tab-btn"
                     hx-get="/api/v1/agent/chat_ui"
                     hx-target="#control-panel-viewport"
@@ -458,6 +451,64 @@
 
     <!-- 前端超媒体并轨控制中心 -->
     <script>
+        // [ANCHOR: CH-13: Fetch_Stream]
+        // 物理级防御：弃用 HTMX 的 sse 扩展，改用原生 JS Fetch 直读 Chunk，彻底绕过 WebKit 的 EventSource 跨域漏洞 (0xBAD4007)
+        document.body.addEventListener('submit', async function(e) {
+            if (e.target && e.target.id === 'chat-form') {
+                e.preventDefault();
+                const form = e.target;
+                const msg = form.msg.value;
+                if (!msg.trim()) return;
+                form.reset();
+                
+                const chatHistory = document.getElementById('chat-history');
+                if (!chatHistory) return;
+                
+                // 渲染用户消息
+                const userHtml = `<div class='chat-msg user' style='text-align: right; margin: 10px 0;'><span style='background: var(--bg-card); padding: 8px 12px; border-radius: 12px; display: inline-block; border: 1px solid var(--border-color);'>${msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</span></div>`;
+                chatHistory.insertAdjacentHTML('beforeend', userHtml);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+                
+                // 渲染 AI 消息容器骨架
+                const msgId = 'ai-' + Math.random().toString(36).substr(2, 9);
+                const aiContainerHtml = `<div class='chat-msg ai' style='margin: 10px 0;'><div id='${msgId}' style='border-left: 2px solid var(--accent-color); padding-left: 10px; background: rgba(59, 130, 246, 0.05); padding: 12px; border-radius: 0 8px 8px 0; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.5;'></div></div>`;
+                chatHistory.insertAdjacentHTML('beforeend', aiContainerHtml);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+                
+                const aiContainer = document.getElementById(msgId);
+                
+                // 发起 Fetch 流式请求
+                try {
+                    const port = window.__ENV__ ? window.__ENV__.BACKEND_PORT : 8080;
+                    const token = window.__ENV__ ? window.__ENV__.TOKEN : "";
+                    
+                    const response = await fetch(`http://127.0.0.1:${port}/api/v1/agent/chat_stream`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ msg: msg })
+                    });
+                    
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        // 将后端吐出的 HTML 直接灌入容器
+                        const chunk = decoder.decode(value);
+                        aiContainer.insertAdjacentHTML('beforeend', chunk);
+                        chatHistory.scrollTop = chatHistory.scrollHeight;
+                    }
+                } catch (error) {
+                    aiContainer.insertAdjacentHTML('beforeend', `<div style="color: #ef4444; font-size: 0.85rem; margin-top: 8px;">[通信中断] 无法连接到物理引擎: ${error.message}</div>`);
+                }
+            }
+        });
+    </script>
+</body>
         // 更新 UI 状态的公共函数
         function updateUIWithPort(port) {
             const indicator = document.querySelector('.pulse-indicator span:last-child');
@@ -531,116 +582,6 @@
                 tabBtn.classList.add('active');
             }
         });
-
-        // [ANCHOR: CH-13: Fetch_Stream]
-        // 物理级防御：弃用 HTMX 的 sse 扩展，改用原生 JS Fetch 直读 Chunk，彻底绕过 WebKit 的 EventSource 跨域漏洞 (0xBAD4007)
-        document.body.addEventListener('submit', async function(e) {
-            if (e.target && e.target.id === 'chat-form') {
-                e.preventDefault();
-                const form = e.target;
-                const msg = form.msg.value;
-                if (!msg.trim()) return;
-                form.reset();
-                
-                const chatHistory = document.getElementById('chat-history');
-                if (!chatHistory) return;
-                
-                // 渲染用户消息
-                const userHtml = `<div class='chat-msg user' style='text-align: right; margin: 10px 0;'><span style='background: var(--bg-card); padding: 8px 12px; border-radius: 12px; display: inline-block; border: 1px solid var(--border-color);'>${msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</span></div>`;
-                chatHistory.insertAdjacentHTML('beforeend', userHtml);
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-                
-                // 渲染 AI 消息容器骨架
-                const msgId = 'ai-' + Math.random().toString(36).substr(2, 9);
-                const aiContainerHtml = `<div class='chat-msg ai' style='margin: 10px 0;'><div id='${msgId}' style='border-left: 2px solid var(--accent-color); padding-left: 10px; background: rgba(59, 130, 246, 0.05); padding: 12px; border-radius: 0 8px 8px 0; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.5;'></div></div>`;
-                chatHistory.insertAdjacentHTML('beforeend', aiContainerHtml);
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-                
-                const aiContainer = document.getElementById(msgId);
-                
-                // 发起 Fetch 流式请求
-                try {
-                    const port = window.__ENV__ ? window.__ENV__.BACKEND_PORT : 8080;
-                    const token = window.__ENV__ ? window.__ENV__.TOKEN : "";
-                    
-                    const response = await fetch(`http://127.0.0.1:${port}/api/v1/agent/chat_stream`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ msg: msg })
-                    });
-                    
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-                    
-                    let isMarkdown = false;
-                    let markdownText = "";
-                    let markdownContainer = null;
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        let chunk = decoder.decode(value);
-                        
-                        // 剔除为了清空后端缓冲而注入的占位注释
-                        chunk = chunk.replace(/<!-- x{4096} -->/g, '');
-
-                        // 判断是否进入了 Markdown 流阶段
-                        if (chunk.includes("<!--MKD_START-->")) {
-                            isMarkdown = true;
-                            chunk = chunk.replace("<!--MKD_START-->\\n", "").replace("<!--MKD_START-->", "");
-                            const mkdId = 'mkd-' + Math.random().toString(36).substr(2, 9);
-                            aiContainer.insertAdjacentHTML('beforeend', `<div id="${mkdId}" class="markdown-body" style="background: transparent; padding: 0;"></div>`);
-                            markdownContainer = document.getElementById(mkdId);
-                        }
-
-                        if (isMarkdown && markdownContainer) {
-                            markdownText += chunk;
-                            // 增量渲染 Markdown
-                            markdownContainer.innerHTML = marked.parse(markdownText);
-                        } else {
-                            // 否则渲染系统 HTML 消息
-                            aiContainer.insertAdjacentHTML('beforeend', chunk);
-                        }
-                        
-                        chatHistory.scrollTop = chatHistory.scrollHeight;
-                    }
-                } catch (error) {
-                    aiContainer.insertAdjacentHTML('beforeend', `<div style="color: #ef4444; font-size: 0.85rem; margin-top: 8px;">[通信中断] 无法连接到物理引擎: ${error.message}</div>`);
-                }
-            }
-        });
-
-        // [ANCHOR: CH-14]
-        // HTTP 退出桥与悬浮窗快捷键拦截 (使用捕获阶段，防止子元素阻止冒泡)
-        document.addEventListener('keydown', function(e) {
-            // 拦截 Cmd+Q (Mac) 或 Ctrl+Q (Win/Linux)
-            if ((e.metaKey && e.key.toLowerCase() === 'q') || (e.ctrlKey && e.key.toLowerCase() === 'q')) {
-                e.preventDefault(); // 彻底消除刺耳的系统鸣声
-                const bunPort = window.__ENV__?.BUN_PORT;
-                if (bunPort) {
-                    fetch(`http://127.0.0.1:${bunPort}/api/app/quit`).catch(() => {});
-                }
-            }
-            // 拦截 Escape
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                const bunPort = window.__ENV__?.BUN_PORT;
-                if (bunPort) {
-                    fetch(`http://127.0.0.1:${bunPort}/api/commander/hide`).catch(() => {});
-                }
-            }
-            // 拦截 Control+Shift+Space 自我隐藏 (解决聚焦时全局热键被吃掉的问题)
-            if (e.ctrlKey && e.shiftKey && (e.code === 'Space' || e.key === ' ')) {
-                e.preventDefault();
-                const bunPort = window.__ENV__?.BUN_PORT;
-                if (bunPort) {
-                    fetch(`http://127.0.0.1:${bunPort}/api/commander/hide`).catch(() => {});
-                }
-            }
-        }, true);
     </script>
 
 </body>

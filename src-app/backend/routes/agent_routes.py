@@ -1,5 +1,28 @@
-from robyn import SubRouter, Request, Response
+from robyn import SubRouter, Request, Response, router
+from robyn.responses import StreamingResponse as PyStreamingResponse
+from robyn.robyn import StreamingResponse as RustStreamingResponse
 import json
+
+# ==========================================
+# Monkeypatch Robyn 0.84.0 StreamingResponse Bug
+# Robyn's _format_response returns the Py wrapper instead of the Rust object
+original_format_response = router.Router._format_response
+
+def patched_format_response(self, res):
+    if isinstance(res, PyStreamingResponse):
+        return RustStreamingResponse(
+            status_code=res.status_code,
+            headers=res.headers,
+            media_type=res.media_type,
+            content=res.content
+        )
+    if isinstance(res, RustStreamingResponse):
+        return res
+    return original_format_response(self, res)
+
+router.Router._format_response = patched_format_response
+# ==========================================
+
 from services.action_registry import ActionRegistry
 
 agent_router = SubRouter(__name__)
@@ -110,7 +133,7 @@ async def chat_stream_endpoint(request: Request):
     
     if session_id not in _chat_sessions:
         _chat_sessions[session_id] = [
-            {"role": "system", "content": "你是 ERTH Assistant，一台冷酷、精准、极简的超级 AI 架构机。当前工作在绝对零 JS 的物理环境中。如果用户索要工具信息或请求动作，你必须严格使用提供的 tools 架构去执行！回答需冷酷简短，具备赛博朋克极客风格。"}
+            {"role": "system", "content": "你是 ERTH Assistant，一个强大的本地 AI 智能体。你具备工具调用（Function Calling）能力。如果用户询问当前时间，你必须调用 `get_system_time` 工具来获取准确时间，然后回答用户。你的回答应该简明扼要。"}
         ]
         
     session_hist = _chat_sessions[session_id]
@@ -121,14 +144,31 @@ async def chat_stream_endpoint(request: Request):
         _chat_sessions[session_id] = [session_hist[0]] + session_hist[-20:]
 
     async def html_generator():
+        # [Hack: Force Actix-web to flush TCP buffer]
+        padding = "<!-- " + ("x" * 4096) + " -->"
+        yield padding + "<div style='color: #10b981; font-family: monospace; font-size: 0.85rem; margin-bottom: 8px; opacity: 0.7;'>&gt; [System] 物理引擎连接中... (若冷启动模型，首次唤醒可能需要 1~2 分钟)</div>\n"
         while True:
-            tools = [{"type": "function", "function": schema} for schema in ActionRegistry.get_all_schemas()]
+            tools = ActionRegistry.get_all_schemas()
             
-            response = await async_llm_chat_stream(
-                messages=session_hist,
-                tools=tools if tools else None
-            )
+            try:
+                response = await async_llm_chat_stream(
+                    messages=session_hist,
+                    tools=tools if tools else None
+                )
+            except Exception as e:
+                yield padding + f"<div style='color: #ef4444; font-family: monospace; font-size: 0.85rem; margin-bottom: 12px;'>&gt; [System] 引擎连接失败 (超时或Ollama未启动): {html.escape(str(e))}</div>\n"
+                break
+            # 不再进行 pre_consume 阻塞判断，全量进入流式解析
+            # 无论是纯文本、Preamble + Tool Call 还是纯 Tool Call，都先完整过一遍流
+            yield "<!--MKD_START-->\n"
             
+            async for chunk in response.text_stream():
+                yield chunk + padding
+            
+            # 流结束后，如果有 preamble 纯文本，大模型本身就会在 final_text 留下痕迹
+            assistant_msg = {"role": "assistant", "content": response.final_text if response.final_text else None}
+            
+            # 流式处理完毕，如果有截获的 tool_call，开始处理物理逻辑
             if response.is_tool_call:
                 tool_name = response.tool_name
                 tool_args = response.tool_args
@@ -147,34 +187,27 @@ async def chat_stream_endpoint(request: Request):
                     result_str = f"Error: {str(e)}"
                     yield f"<div style='color: #ef4444; font-family: monospace; font-size: 0.85rem; margin-bottom: 12px;'>&gt; [System] 执行崩溃: {html.escape(result_str)}</div>\n"
                 
-                session_hist.append({
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{"id": response.tool_id, "type": "function", "function": {"name": tool_name, "arguments": json.dumps(tool_args)}}]
-                })
+                # 为 assistant_msg 附加上 tool_calls 信息
+                assistant_msg["tool_calls"] = [{"id": response.tool_id, "type": "function", "function": {"name": tool_name, "arguments": json.dumps(tool_args)}}]
+                session_hist.append(assistant_msg)
+                
+                # 记录动作执行结果
                 session_hist.append({
                     "role": "tool",
                     "tool_call_id": response.tool_id,
                     "name": tool_name,
                     "content": result_str
                 })
-                # 重新回旋
+                # 动作执行完毕，重新回旋让大模型继续思考或总结
                 continue
-            
             else:
-                async for chunk in response.text_stream():
-                    yield html.escape(chunk)
-                
-                session_hist.append({"role": "assistant", "content": response.final_text})
+                # 纯粹的聊天回复，没有 tool_call，则结束当前流
+                session_hist.append(assistant_msg)
                 break
 
-    return Response(
+    return PyStreamingResponse(
+        content=html_generator(),
         status_code=200,
-        headers={
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Transfer-Encoding": "chunked"
-        },
-        description=html_generator()
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        media_type="text/html"
     )

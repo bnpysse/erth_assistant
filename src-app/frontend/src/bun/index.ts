@@ -36,7 +36,6 @@ let backendPort = 0;
 let timeoutTimer: any = null;
 let watchdogInterval: any = null;
 let failCount = 0;
-let isDomReady = false;
 
 // 兼容多版本 Robyn/Uvicorn 的端口匹配正则 (支持 http://127.0.0.1:xxxx 或 listening on: 0.0.0.0:xxxx)
 const PORT_CAPTURE_REGEX = /http:\/\/127\.0\.0\.1:(\d+)|listening on: [^:]+:(\d+)/;
@@ -103,16 +102,16 @@ const handleOutput = async (stream: ReadableStream, label: string) => {
           startWatchdog();
 
           // [ANCHOR: CH-04]
-          // 物理防线并轨：将最新的通讯端口与 Opaque Token 动态注入前台 Webview 容器
-          // ⚠️ [修复内核态级崩溃]：禁止在 Webview 尚未触发 dom-ready 前调用 executeJavascript，否则会导致 WebKit 抛出 0xBAD4007 Bus Error
-          if (win && win.webview && isDomReady) {
+          // 物理防线并轨：将最新的通讯端口与 Opaque Token 动态注入前台 Webview 容器，并派发就绪事件
+          if (win && win.webview) {
             win.webview.executeJavascript(`
               window.__ENV__ = {
                 BACKEND_PORT: ${backendPort},
-                TOKEN: "${agentSecretToken}"
+                TOKEN: "${agentSecretToken}",
+                BUN_PORT: ${bunHttpPort || 0}
               };
               window.dispatchEvent(new CustomEvent('backend-ready', { 
-                detail: { port: ${backendPort}, token: "${agentSecretToken}" } 
+                detail: { port: ${backendPort}, token: "${agentSecretToken}", bunPort: ${bunHttpPort || 0} } 
               }));
             `);
           }
@@ -216,32 +215,110 @@ process.on("SIGINT", killBackend);
 process.on("SIGTERM", killBackend);
 process.on("exit", killBackend);
 
-// 4. 挂载 Electrobun 原生视窗
+// [ANCHOR: CH-14]
+// 4. 挂载 Electrobun 原生视窗 (幽灵化)
 win = new Electrobun.BrowserWindow({
     title: "ERTH Assistant",
+    transparent: true,
     frame: {
         width: 900,
         height: 700
     },
+    mac: {
+        styleMask: {
+            Borderless: true,
+            UtilityWindow: true,
+            HUDWindow: true
+        }
+    },
     url: "views://main/index.html"
 });
+
+// [ANCHOR: CH-14]
+// 5. 组建超媒体退出桥 (HTTP Bridge) 与全局状态控制
+let bunHttpPort = 0;
+let isFocused = false;
+let lastShowTime = 0;
+
+const hideCommander = () => {
+    if (win) {
+        // Electrobun 原生方法可能为 hide() 或 setVisibility(false) 
+        // 但通常隐藏/显示使用 hide() / show()
+        win.hide();
+        isFocused = false;
+    }
+};
+
+const bunServer = Bun.serve({
+    port: 0,
+    fetch(req) {
+        const url = new URL(req.url);
+        // CORS 处理 (放行跨域)
+        if (req.method === "OPTIONS") {
+            return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "*", "Access-Control-Allow-Headers": "*" } });
+        }
+        
+        if (url.pathname === '/api/app/quit') {
+            console.log("\\n🛑 [ElectroBun HTTP Bridge] 收到退出指令，正在平滑退场...");
+            killBackendWithCode(0, false);
+            return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*" } });
+        }
+        if (url.pathname === '/api/commander/hide') {
+            hideCommander();
+            return new Response("ok", { headers: { "Access-Control-Allow-Origin": "*" } });
+        }
+        return new Response("not found", { status: 404, headers: { "Access-Control-Allow-Origin": "*" } });
+    }
+});
+bunHttpPort = bunServer.port;
+console.log(`[ElectroBun] 退出桥建立在端口: ${bunHttpPort}`);
 
 // [ANCHOR: CH-04]
 // 监听 Webview 的 DOM 就绪事件，确保在页面重载或滞后加载时，能够成功同步最新的后端端口
 win.webview.on("dom-ready", () => {
-    isDomReady = true;
     if (portFound && backendPort > 0) {
         win.webview.executeJavascript(`
             window.__ENV__ = {
                 BACKEND_PORT: ${backendPort},
-                TOKEN: "${agentSecretToken}"
+                TOKEN: "${agentSecretToken}",
+                BUN_PORT: ${bunHttpPort}
             };
             window.dispatchEvent(new CustomEvent('backend-ready', { 
-                detail: { port: ${backendPort}, token: "${agentSecretToken}" } 
+                detail: { port: ${backendPort}, token: "${agentSecretToken}", bunPort: ${bunHttpPort} } 
             }));
         `);
     }
 });
+
+// [ANCHOR: CH-14]
+// 6. 幽灵唤醒机制与热键拦截
+try {
+    Electrobun.GlobalShortcut.register('Control+Shift+Space', () => {
+        if (!win) return;
+        if (isFocused) {
+            console.log("⚡ [ElectroBun] 幽灵浮窗隐藏！");
+            hideCommander();
+        } else {
+            console.log("⚡ [ElectroBun] 幽灵浮窗唤醒！");
+            win.show();
+            isFocused = true;
+            lastShowTime = Date.now();
+        }
+    });
+
+    win.on('focus', () => {
+        isFocused = true;
+    });
+
+    win.on('blur', () => {
+        // 延迟失焦过滤
+        if (isFocused && (Date.now() - lastShowTime > 300)) {
+            hideCommander();
+        }
+    });
+} catch (e) {
+    console.error("[ElectroBun] GlobalShortcut 注册失败", e);
+}
 
 // 可以手动在需要调试时开启 DevTools，此处关闭自动拉起
 // setTimeout(() => {

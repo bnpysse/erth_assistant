@@ -28,15 +28,20 @@ def auth_middleware(request: Request):
     auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
     expected_token = f"Bearer {AGENT_SECRET_TOKEN}"
     
+    # 针对 SSE 长连接（EventSource 原生不支持携带自定义 Header），支持在 Query 中携带 Token
+    query_token = request.query_params.get("token", "")
+    if not query_token:
+        query_token = ""
+    
     # 强制比对身份令牌，拦截非法流量并响应 403
-    if not auth_header or auth_header != expected_token:
-        return Response(
-            status_code=403,
-            headers={"Content-Type": "application/json"},
-            description='{"error": "Forbidden: Invalid or Missing Opaque Token"}'
-        )
+    if auth_header == expected_token or query_token == AGENT_SECRET_TOKEN:
+        return request
         
-    return request
+    return Response(
+        status_code=403,
+        headers={"Content-Type": "application/json"},
+        description='{"error": "Forbidden: Invalid or Missing Opaque Token"}'
+    )
 
 # 启用官方 CORS，并显式放行授权及 HTMX 的全套特征 Headers
 ALLOW_CORS(app, origins=["*"], headers=[
