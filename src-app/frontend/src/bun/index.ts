@@ -175,10 +175,20 @@ const startBackend = () => {
   
   console.log(`🚀 [ElectroBun] 正在静默拉起 Robyn 后端引擎，物理路径: ${backendPath}`);
   
-  // [ANCHOR: CH-16: 物理路径提权与封存态侦测]
-  const isProd = process.env.NODE_ENV === "production" || process.execPath.includes("MacOS");
+  // [ANCHOR: CH-16: 物理路径提权与封存态侦测 (跨平台支持)]
+  const isProd = process.env.NODE_ENV === "production" || process.execPath.includes("MacOS") || process.execPath.includes("Release");
+  
+  let engineExecutable = "";
+  if (process.platform === "win32") {
+      engineExecutable = resolve(process.execPath, "../robyn_engine/robyn_engine.exe");
+  } else if (process.platform === "darwin") {
+      engineExecutable = resolve(process.execPath, "../../MacOS/robyn_engine/robyn_engine");
+  } else {
+      engineExecutable = resolve(process.execPath, "../robyn_engine/robyn_engine");
+  }
+  
   const backendCmd = isProd 
-      ? [resolve(process.execPath, "../../MacOS/robyn_engine/robyn_engine")] // 指向被封存的二进制引擎的【内部执行文件】
+      ? [engineExecutable] // 指向被封存的二进制引擎的【内部执行文件】
       : ["uv", "run", "python", "-u", "app.py"]; // 开发态动态路由
 
   backendProcess = spawn({
