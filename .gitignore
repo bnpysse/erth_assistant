@@ -26,4 +26,5 @@ __pycache__/
 
 # === 书稿 (不公开到公网) ===
 /docs/
+.antigravity/
 
