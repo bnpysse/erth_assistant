@@ -105,6 +105,27 @@ def unload_plugin(plugin_name: str) -> bool:
             return False
     return False
 
+def execute_plugin(plugin_name: str, payload: dict = None) -> Any:
+    """向存活的插件下发执行指令"""
+    module_name = plugin_name.replace(".py", "")
+    if module_name in _plugin_registry:
+        plugin_data = _plugin_registry[module_name]
+        module = plugin_data["module"]
+        context = plugin_data["context"]
+        
+        if hasattr(module, 'execute'):
+            try:
+                # 记录执行动作
+                context.log(">>> [统帅下发执行指令]")
+                return module.execute(context, payload or {})
+            except Exception as e:
+                context.log(f"[执行异常] 物理崩溃：{e}")
+                return None
+        else:
+            context.log("[拒绝执行] 模块尚未装载 execute 运算钩子。")
+            return None
+    return None
+
 def get_loaded_plugins() -> dict:
     return {name: data["status"] for name, data in _plugin_registry.items()}
     

@@ -2,7 +2,8 @@
 from robyn import SubRouter, Request, Response
 from services.plugin_manager import (
     load_plugin, 
-    unload_plugin, 
+    unload_plugin,
+    execute_plugin,
     get_loaded_plugins, 
     get_available_plugins,
     _plugin_registry
@@ -20,10 +21,21 @@ def render_plugin_fragment(plugin_file: str, is_active: bool, logs: list = None)
     
     logs_html = ""
     if is_active and logs:
-        logs_html = "<div style='margin-top: 12px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px; font-family: monospace; font-size: 0.8rem; color: #a1a1aa;'>"
-        for log in logs[-3:]: # 只展示最新3条
+        logs_html = "<div style='margin-top: 12px; padding: 12px; background: rgba(0,0,0,0.3); border-radius: 8px; font-family: monospace; font-size: 0.85rem; color: #a1a1aa; max-height: 150px; overflow-y: auto; line-height: 1.5;'>"
+        for log in logs[-8:]: # 展示最新8条
             logs_html += f"<div>{log}</div>"
         logs_html += "</div>"
+        
+    btn_execute = ""
+    if is_active:
+        btn_execute = f"""
+        <button hx-post="/api/v1/plugins/execute/{plugin_file}"
+                hx-target="closest .plugin-card"
+                hx-swap="outerHTML"
+                style="background: #8b5cf6; border: none; color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; margin-right: 8px;">
+            ⚡ 触发核心运算
+        </button>
+        """
 
     return f"""
     <div class="plugin-card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 10px; padding: 16px; margin-bottom: 12px; transition: all 0.3s; animation: fadeIn 0.4s ease-out;">
@@ -33,7 +45,9 @@ def render_plugin_fragment(plugin_file: str, is_active: bool, logs: list = None)
                 <h4 style="margin: 0; color: var(--text-primary); font-size: 1.05rem;">{plugin_file}</h4>
                 <span style="font-size: 0.75rem; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; color: {status_color}">{status_text}</span>
             </div>
-            <button hx-post="/api/v1/plugins/{action}/{plugin_file}"
+            <div style="display: flex; align-items: center;">
+                {btn_execute}
+                <button hx-post="/api/v1/plugins/{action}/{plugin_file}"
                     hx-target="closest .plugin-card"
                     hx-swap="outerHTML"
                     style="background: {btn_color}; border: none; color: white; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s;">
@@ -104,4 +118,18 @@ async def handle_unload_plugin(request: Request, name: str = ""):
         return Response(status_code=500, headers={"Content-Type": "text/html; charset=utf-8"}, description=f"<div style='color: red;'>剥离 {plugin_name} 失败！</div>")
         
     html = render_plugin_fragment(plugin_name, is_active=False)
+    return Response(status_code=200, headers={"Content-Type": "text/html; charset=utf-8"}, description=html)
+
+@plugin_router.post("/api/v1/plugins/execute/:name")
+async def handle_execute_plugin(request: Request, name: str = ""):
+    plugin_name = name or request.path_params.get("name")
+    
+    # 触发内部运算执行
+    execute_plugin(plugin_name)
+    
+    # 获取最新的日志重绘 UI
+    mod_name = plugin_name.replace(".py", "")
+    logs = _plugin_registry[mod_name]["context"].get_logs() if mod_name in _plugin_registry else []
+    
+    html = render_plugin_fragment(plugin_name, is_active=True, logs=logs)
     return Response(status_code=200, headers={"Content-Type": "text/html; charset=utf-8"}, description=html)
