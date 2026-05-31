@@ -1,21 +1,31 @@
 import os
+import sys
 import json
 import httpx
 import uuid
 from pathlib import Path
 
 # 尝试手动加载 .env 文件，防止 Bun 未注入环境变量
-env_path = Path(__file__).parent.parent.parent.parent / ".env"
-if env_path.exists():
-    with open(env_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#"):
-                key, _, val = line.partition("=")
-                key = key.strip()
-                val = val.strip().strip("'").strip('"')
-                if key and val:
-                    os.environ[key] = val
+# [ANCHOR: CH-16] 封存态下指向物理边缘目录
+if getattr(sys, 'frozen', False):
+    env_paths = [Path(os.path.expanduser("~/.erth_assistant/.env"))]
+else:
+    env_paths = [
+        Path(__file__).parent.parent.parent.parent / ".env",
+        Path(os.path.expanduser("~/.erth_assistant/.env"))
+    ]
+
+for env_path in env_paths:
+    if env_path.exists():
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    key, _, val = line.partition("=")
+                    key = key.strip()
+                    val = val.strip().strip("'").strip('"')
+                    if key and val and key not in os.environ:
+                        os.environ[key] = val
 
 # 核心配置：通过环境变量实现云端与本地的无缝切换
 LLM_MODE = os.environ.get("LLM_MODE", "cloud") # 默认切换到云端模式（本地算力测试完毕，开启云端体验）
