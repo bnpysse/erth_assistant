@@ -23,4 +23,7 @@ __pycache__/
 *.db-journal
 *.db-shm
 *.db-wal
-
+# === 机密配置 ===
+.env
+.env.*
+!.env.example
