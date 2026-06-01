@@ -176,8 +176,6 @@ const startBackend = () => {
   console.log(`🚀 [ElectroBun] 正在静默拉起 Robyn 后端引擎，物理路径: ${backendPath}`);
   
   // [ANCHOR: CH-16: 物理路径提权与封存态侦测 (跨平台支持)]
-  const isProd = process.env.NODE_ENV === "production" || process.execPath.includes("MacOS") || process.execPath.includes("Release");
-  
   let engineExecutable = "";
   if (process.platform === "win32") {
       engineExecutable = resolve(process.execPath, "../robyn_engine/robyn_engine.exe");
@@ -186,6 +184,9 @@ const startBackend = () => {
   } else {
       engineExecutable = resolve(process.execPath, "../robyn_engine/robyn_engine");
   }
+  
+  // 抛弃脆弱的路径名匹配，直接通过探针检测物理文件是否存在来判定是否为封存态
+  const isProd = fs.existsSync(engineExecutable);
   
   const backendCmd = isProd 
       ? [engineExecutable] // 指向被封存的二进制引擎的【内部执行文件】
