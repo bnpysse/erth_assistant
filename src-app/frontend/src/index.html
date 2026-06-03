@@ -405,7 +405,7 @@
     <aside class="sidebar">
         <div class="brand">ERTH Console</div>
         <nav class="nav-group">
-            <!-- [ANCHOR: CH-07: TODO_PANEL] -->
+            <!-- [ANCHOR: CH-07] -->
             <!-- Tab 1 (待办中心): 绑定 hx-get 并指定目标渲染区 -->
             <button class="tab-btn active"
                     hx-get="/api/v1/todos"
@@ -414,7 +414,7 @@
                 <span>📅</span> 待办中心
             </button>
             
-            <!-- [ANCHOR: CH-08: NOTEBOOK_PANEL] -->
+            <!-- [ANCHOR: CH-08] -->
             <!-- Tab 2 (全景日志): 绑定 hx-get 并指定目标渲染区 -->
             <button class="tab-btn"
                     hx-get="/api/v1/notebook"
@@ -431,7 +431,7 @@
                 <span>⚡</span> 外部数据
             </button>
 
-            <!-- [ANCHOR: CH-13: AI_PANEL] -->
+            <!-- [ANCHOR: CH-13] -->
             <!-- Tab 4 (AI 控制台): 原生 Fetch Stream 驱动的 ReAct Agent 面板 -->
             <button class="tab-btn"
                     hx-get="/api/v1/agent/chat_ui"
@@ -440,7 +440,7 @@
                 <span>🤖</span> AI 控制台
             </button>
 
-            <!-- [ANCHOR: CH-15: PLUGIN_PANEL] -->
+            <!-- [ANCHOR: CH-15] -->
             <!-- Tab 5 (生态插件): 热插拔架构演示 -->
             <button class="tab-btn"
                     hx-get="/api/v1/plugins/panel"
@@ -541,7 +541,7 @@
             }
         });
 
-        // [ANCHOR: CH-13: Fetch_Stream]
+        // [ANCHOR: CH-13]
         // 物理级防御：弃用 HTMX 的 sse 扩展，改用原生 JS Fetch 直读 Chunk，彻底绕过 WebKit 的 EventSource 跨域漏洞 (0xBAD4007)
         document.body.addEventListener('submit', async function(e) {
             if (e.target && e.target.id === 'chat-form') {

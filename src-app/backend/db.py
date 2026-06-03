@@ -1,4 +1,4 @@
-# [ANCHOR: CH-05: SQLMODEL_DATABASE]
+# [ANCHOR: CH-05]
 import os
 import sys
 import time
@@ -6,7 +6,7 @@ import uuid
 from sqlmodel import Field, SQLModel, create_engine, Session, select
 import sqlalchemy_libsql  # 注册 sqlite+libsql 方言以支持 Turso 远程连接
 
-# [ANCHOR: CH-16: 数据库封存态环境寻址与云边同步]
+# [ANCHOR: CH-16]
 if getattr(sys, 'frozen', False):
     app_data_dir = os.path.expanduser("~/.erth_assistant")
     os.makedirs(app_data_dir, exist_ok=True)

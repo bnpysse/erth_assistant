@@ -175,7 +175,7 @@ const startBackend = () => {
   
   console.log(`🚀 [ElectroBun] 正在静默拉起 Robyn 后端引擎，物理路径: ${backendPath}`);
   
-  // [ANCHOR: CH-16: 物理路径提权与封存态侦测 (跨平台支持)]
+  // [ANCHOR: CH-16]
   let engineExecutable = "";
   if (process.platform === "win32") {
       engineExecutable = resolve(process.execPath, "../robyn_engine/robyn_engine.exe");

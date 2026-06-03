@@ -1,4 +1,4 @@
-# [ANCHOR: CH-09: ASYNC_PIM_SERVICE]
+# [ANCHOR: CH-09]
 # 生产级非阻塞拉取逻辑与错误物理退守
 import httpx
 import logging
@@ -58,4 +58,4 @@ async def fetch_flight_async() -> dict:
     except Exception as e:
         logger.warning(f"航班 API 拉取超时或不可达，执行物理影子降级退守。异常信息: {e}")
         return default_flight
-# [ANCHOR_END: CH-09: ASYNC_PIM_SERVICE]
+# [ANCHOR_END: CH-09]

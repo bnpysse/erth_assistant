@@ -130,7 +130,7 @@ def get_request_body_params(request: Request) -> dict:
             # 极限兜底：如果 JSON 解析失败（通常因为 WebKit 发送了奇怪的 Header 导致 Content-Type 没被捕获），
             # 且 body 实际上是 urlencoded，则强行使用 parse_qs 解析
             parsed = urllib.parse.parse_qs(body_str)
-# [ANCHOR: CH-07: HTMX_TODO_FRAGMENTS]
+# [ANCHOR: CH-07]
 
 def render_task_fragment(todo: dict) -> str:
     """将单个待办事项渲染为超媒体 HTML 碎片"""
@@ -194,7 +194,7 @@ def render_todo_center(todos: list) -> str:
     </div>
     """
 
-# [ANCHOR: CH-06: REST_API_ENDPOINTS]
+# [ANCHOR: CH-06]
 
 @app.get("/api/v1/todos")
 async def get_todos(request: Request):
@@ -425,7 +425,7 @@ async def delete_todo_v1(request: Request, id: str):
 async def delete_task_v1(request: Request, id: str):
     return await handle_delete_todo(request, id)
 
-# [ANCHOR: CH-08: MARKDOWN_JOURNAL_MODULE]
+# [ANCHOR: CH-08]
 # ==================== Journal / Notebook Handlers ====================
 
 def render_journal_history_fragment(journal: dict) -> str:
@@ -578,21 +578,21 @@ async def delete_journal_route(request: Request, id: str):
     return Response(status_code=200, headers={"Content-Type": "text/html; charset=utf-8"}, description="")
 
 
-# [ANCHOR: CH-09: ASYNC_PIM_SERVICE]
+# [ANCHOR: CH-09]
 # 生产级非阻塞拉取逻辑与错误物理退守
 from routes.pim_routes import pim_router
 app.include_router(pim_router)
-# [ANCHOR_END: CH-09: ASYNC_PIM_SERVICE]
+# [ANCHOR_END: CH-09]
 
-# [ANCHOR: CH-12: AGENT_BEHAVIOR_ROUTER]
+# [ANCHOR: CH-12]
 from routes.agent_routes import agent_router
 app.include_router(agent_router)
-# [ANCHOR_END: CH-12: AGENT_BEHAVIOR_ROUTER]
+# [ANCHOR_END: CH-12]
 
-# [ANCHOR: CH-15: DYNAMIC_PLUGIN_ROUTER]
+# [ANCHOR: CH-15]
 from routes.plugin_routes import plugin_router
 app.include_router(plugin_router)
-# [ANCHOR_END: CH-15: DYNAMIC_PLUGIN_ROUTER]
+# [ANCHOR_END: CH-15]
 
 
 if __name__ == "__main__":
