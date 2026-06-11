@@ -6,7 +6,7 @@
 ![Version](https://img.shields.io/badge/version-v1.0--Release-green.svg)
 [![Leanpub 电子书](https://img.shields.io/badge/Leanpub-%E8%B4%AD%E4%B9%B0%E7%94%B5%E5%AD%90%E4%B9%A6-orange?style=for-the-badge)](https://leanpub.com/erth-assistant)
 
-**ERTH Assistant** 是一款拥有“极客灵魂”的跨平台桌面应用。它脱胎于《全栈极客开发图鉴》（*The Full-Stack Geek's Guide*），是正式出版书籍 [**"ERTH Assistant: Local-First + AI Sidecar Desktop Architecture"**](https://leanpub.com/erth-assistant) 的官方配套开源代码库。
+**ERTH Assistant** 是一款拥有“极客灵魂”的跨平台桌面应用。它脱胎于《全栈极客开发图鉴》（*The Full-Stack Geek's Guide*），是正式出版书籍 [**"ERTH Assistant: Local-First + AI Sidecar Desktop Architecture"**](https://leanpub.com/erth_assistant) 的官方配套开源代码库。
 
 本项目展示了如何通过**异构双核架构**与**前端零 JS 约束**，打造一个极速、安全的下一代个人信息管理（PIM）与 AI 代理中枢。
 
