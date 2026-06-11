@@ -4,9 +4,9 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Version](https://img.shields.io/badge/version-v1.0--Release-green.svg)
-[![Leanpub Book](https://img.shields.io/badge/Leanpub-Buy%20the%20Book-orange?style=for-the-badge)](https://leanpub.com/erth-assistant)
+[![Leanpub Book](https://img.shields.io/badge/Leanpub-Buy%20the%20Book-orange?style=for-the-badge)](https://leanpub.com/erth_assistant)
 
-**ERTH Assistant** is a cross-platform desktop application with a "geek soul." It serves as the official companion repository for the book [**"ERTH Assistant: Local-First + AI Sidecar Desktop Architecture"**](https://leanpub.com/erth-assistant).
+**ERTH Assistant** is a cross-platform desktop application with a "geek soul." It serves as the official companion repository for the book [**"ERTH Assistant: Local-First + AI Sidecar Desktop Architecture"**](https://leanpub.com/erth_assistant).
 
 It showcases how to build an ultra-fast, secure, next-generation Personal Information Management (PIM) and AI agent hub by utilizing a **heterogeneous dual-core architecture** and **zero-JS frontend constraints**.
 
