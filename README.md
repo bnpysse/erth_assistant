@@ -16,7 +16,7 @@ It showcases how to build an ultra-fast, secure, next-generation Personal Inform
 
 The architectural evolution, troubleshooting logs, and core design philosophies of this project are documented page-for-page in our official book:
 
-👉 **[Read the Book on Leanpub (Includes a Free 5-Chapter Preview Edition)](https://leanpub.com/erth-assistant)**
+👉 **[Read the Book on Leanpub (Includes a Free 5-Chapter Preview Edition)](https://leanpub.com/erth_assistant)**
 
 Every branch and tag in this repository corresponds directly to a specific chapter's tactical milestone in the book.
 

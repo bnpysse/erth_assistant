@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Version](https://img.shields.io/badge/version-v1.0--Release-green.svg)
-[![Leanpub 电子书](https://img.shields.io/badge/Leanpub-%E8%B4%AD%E4%B9%B0%E7%94%B5%E5%AD%90%E4%B9%A6-orange?style=for-the-badge)](https://leanpub.com/erth-assistant)
+[![Leanpub 电子书](https://img.shields.io/badge/Leanpub-%E8%B4%AD%E4%B9%B0%E7%94%B5%E5%AD%90%E4%B9%A6-orange?style=for-the-badge)](https://leanpub.com/erth_assistant)
 
 **ERTH Assistant** 是一款拥有“极客灵魂”的跨平台桌面应用。它脱胎于《全栈极客开发图鉴》（*The Full-Stack Geek's Guide*），是正式出版书籍 [**"ERTH Assistant: Local-First + AI Sidecar Desktop Architecture"**](https://leanpub.com/erth_assistant) 的官方配套开源代码库。
 
@@ -16,7 +16,7 @@
 
 本项目的完整架构推演、踩坑记录与设计哲学，均详细记录于我们的官方著作中：
 
-👉 **[在 Leanpub 上阅读本书（包含前五章免费试读版）](https://leanpub.com/erth-assistant)**
+👉 **[在 Leanpub 上阅读本书（包含前五章免费试读版）](https://leanpub.com/erth_assistant)**
 
 代码库中的每个分支与 Tag，都对应着书稿中步步为营的战术演进里程碑。
 
